@@ -7,84 +7,166 @@ const Welcome: React.FC = () => {
   return (
     <div style={{
       minHeight: '100vh',
-      height: '100vh',
-      background: 'linear-gradient(to bottom, #FFE4E1 0%, #E6F7FF 100%)',
+      background: 'linear-gradient(160deg, #FFE4E1 0%, #E8F4FD 50%, #E6F7FF 100%)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'space-between',
-      padding: '3rem 1.5rem 2rem',
+      padding: '3rem 1.5rem 2.5rem',
       fontFamily: 'system-ui, -apple-system, sans-serif',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      position: 'relative'
     }}>
-      <h1 style={{ 
-        fontSize: '1.8rem', 
-        margin: 0,
-        color: '#333',
-        fontWeight: '400'
-      }}>
-        Welcome To
-      </h1>
+      {/* Decorative Elements */}
+      <div style={{
+        position: 'absolute',
+        top: '10%',
+        left: '-5%',
+        width: '150px',
+        height: '150px',
+        borderRadius: '50%',
+        background: 'rgba(180, 231, 229, 0.3)',
+        filter: 'blur(40px)'
+      }} />
+      <div style={{
+        position: 'absolute',
+        bottom: '20%',
+        right: '-10%',
+        width: '200px',
+        height: '200px',
+        borderRadius: '50%',
+        background: 'rgba(255, 209, 102, 0.2)',
+        filter: 'blur(50px)'
+      }} />
+
+      {/* Top Section */}
+      <div style={{ textAlign: 'center', zIndex: 1 }}>
+        <p style={{ 
+          fontSize: '1.1rem', 
+          margin: 0,
+          color: '#6B7280',
+          fontWeight: '400',
+          letterSpacing: '0.5px'
+        }}>
+          Welcome to
+        </p>
+      </div>
       
-      <div style={{ textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-        {/* Placeholder for logo - add your actual logo image here */}
+      {/* Center - Logo */}
+      <div style={{ 
+        textAlign: 'center', 
+        flex: 1, 
+        display: 'flex', 
+        flexDirection: 'column', 
+        justifyContent: 'center',
+        zIndex: 1
+      }}>
         <div style={{
-          width: '120px',
-          height: '120px',
-          background: '#B4E7E5',
-          borderRadius: '20px',
+          width: '140px',
+          height: '140px',
+          background: 'linear-gradient(135deg, #B4E7E5 0%, #7DD3C8 100%)',
+          borderRadius: '32px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          margin: '0 auto 1rem'
+          margin: '0 auto 1.5rem',
+          boxShadow: '0 20px 40px rgba(125, 211, 200, 0.3)',
+          transform: 'rotate(-3deg)'
         }}>
-          <span style={{ fontSize: '3rem' }}>👶</span>
+          <span style={{ fontSize: '4rem', transform: 'rotate(3deg)' }}>👶</span>
         </div>
-        <h2 style={{ 
-          fontSize: '2.5rem', 
-          fontWeight: 'bold', 
-          margin: 0,
-          color: '#333'
+        <h1 style={{ 
+          fontSize: '3.5rem', 
+          fontWeight: '700', 
+          margin: '0 0 0.5rem 0',
+          color: '#1F2937',
+          letterSpacing: '-1px'
         }}>
           nappi
-        </h2>
+        </h1>
+        <p style={{
+          fontSize: '1.1rem',
+          color: '#6B7280',
+          margin: 0,
+          maxWidth: '280px',
+          lineHeight: '1.5'
+        }}>
+          Better sleep for your baby,<br />and peace of mind for you
+        </p>
       </div>
 
-      <div style={{ width: '100%', maxWidth: '400px' }}>
-        <p style={{ 
-          fontSize: '1rem', 
-          color: '#666', 
-          marginBottom: '2rem',
-          textAlign: 'center'
-        }}>
-          Better sleep for your baby<br />and for you
-        </p>
+      {/* Bottom - CTA Buttons */}
+      <div style={{ width: '100%', maxWidth: '360px', zIndex: 1 }}>
+        <button
+          onClick={() => navigate('/signup')}
+          style={{
+            background: 'linear-gradient(135deg, #FFD166 0%, #FFB84D 100%)',
+            border: 'none',
+            borderRadius: '16px',
+            padding: '1.1rem',
+            width: '100%',
+            fontSize: '1.15rem',
+            fontWeight: '600',
+            color: '#1F2937',
+            cursor: 'pointer',
+            boxShadow: '0 8px 24px rgba(255, 209, 102, 0.4)',
+            transition: 'transform 0.2s, box-shadow 0.2s',
+            marginBottom: '1rem'
+          }}
+          onMouseDown={(e) => {
+            e.currentTarget.style.transform = 'scale(0.98)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 209, 102, 0.4)';
+          }}
+          onMouseUp={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 8px 24px rgba(255, 209, 102, 0.4)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 8px 24px rgba(255, 209, 102, 0.4)';
+          }}
+        >
+          Get Started
+        </button>
 
         <button
           onClick={() => navigate('/login')}
           style={{
-            background: '#FFD166',
-            border: 'none',
-            borderRadius: '50px',
+            background: 'white',
+            border: '2px solid #E5E7EB',
+            borderRadius: '16px',
             padding: '1rem',
             width: '100%',
-            fontSize: '1.2rem',
-            fontWeight: '600',
-            color: '#333',
+            fontSize: '1rem',
+            fontWeight: '500',
+            color: '#4B5563',
             cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-            transition: 'transform 0.2s'
+            transition: 'all 0.2s'
           }}
-          onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
-          onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
-          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = '#FFD166';
+            e.currentTarget.style.color = '#1F2937';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = '#E5E7EB';
+            e.currentTarget.style.color = '#4B5563';
+          }}
         >
-          let&apos;s nap!
+          I already have an account
         </button>
+
+        <p style={{
+          textAlign: 'center',
+          fontSize: '0.75rem',
+          color: '#9CA3AF',
+          marginTop: '1.5rem',
+          marginBottom: 0
+        }}>
+          By continuing, you agree to our Terms of Service
+        </p>
       </div>
     </div>
   );
 };
 
 export default Welcome;
-

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
+import ProtectedRoute from './components/ProtectedRoute';
 import Welcome from './pages/Welcome';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -19,11 +20,31 @@ const App: React.FC = () => {
       <Route path="/signup" element={<Signup />} />
       
       {/* Protected routes (with Layout) */}
-      <Route path="/onboarding" element={<Layout><Onboarding /></Layout>} />
-      <Route path="/" element={<Layout><HomeDashboard /></Layout>} />
-      <Route path="/statistics" element={<Layout><Statistics /></Layout>} />
-      <Route path="/user" element={<Layout><UserProfile /></Layout>} />
-      <Route path="/notifications" element={<Layout><Notifications /></Layout>} />
+      <Route path="/onboarding" element={
+        <ProtectedRoute>
+          <Layout><Onboarding /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/" element={
+        <ProtectedRoute>
+          <Layout><HomeDashboard /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/statistics" element={
+        <ProtectedRoute>
+          <Layout><Statistics /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/user" element={
+        <ProtectedRoute>
+          <Layout><UserProfile /></Layout>
+        </ProtectedRoute>
+      } />
+      <Route path="/notifications" element={
+        <ProtectedRoute>
+          <Layout><Notifications /></Layout>
+        </ProtectedRoute>
+      } />
       
       {/* Redirect to welcome for any unknown route */}
       <Route path="*" element={<Navigate to="/welcome" replace />} />
