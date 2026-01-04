@@ -55,305 +55,233 @@ const Signup: React.FC = () => {
     }
   };
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '0.875rem',
-    borderRadius: '12px',
-    border: '2px solid #E5E7EB',
-    fontSize: '1rem',
-    boxSizing: 'border-box',
-    outline: 'none',
-    transition: 'border-color 0.2s, box-shadow 0.2s',
-    background: '#FAFAFA'
-  };
-
-  const labelStyle: React.CSSProperties = {
-    display: 'block',
-    marginBottom: '0.5rem',
-    fontWeight: '500',
-    color: '#374151',
-    fontSize: '0.9rem',
-  };
-
-  const handleFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
-    e.target.style.borderColor = '#FFD166';
-    e.target.style.boxShadow = '0 0 0 3px rgba(255, 209, 102, 0.2)';
-  };
-
-  const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
-    e.target.style.borderColor = '#E5E7EB';
-    e.target.style.boxShadow = 'none';
-  };
-
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      padding: '2rem 1.5rem',
-      background: 'linear-gradient(160deg, #FFE4E1 0%, #E8F4FD 50%, #E6F7FF 100%)'
-    }}>
-      {/* Logo */}
-      <div 
-        onClick={() => navigate('/welcome')}
-        style={{ 
-          textAlign: 'center', 
-          marginBottom: '1.5rem',
-          cursor: 'pointer'
-        }}
-      >
-        <div style={{
-          width: '60px',
-          height: '60px',
-          background: 'linear-gradient(135deg, #B4E7E5 0%, #7DD3C8 100%)',
-          borderRadius: '16px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          margin: '0 auto 0.5rem',
-          boxShadow: '0 8px 24px rgba(125, 211, 200, 0.3)'
-        }}>
-          <span style={{ fontSize: '1.75rem' }}>👶</span>
-        </div>
-        <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#1F2937', fontWeight: '700' }}>
-          nappi
-        </h1>
+    <div className="min-h-screen w-screen flex items-center justify-center bg-gradient-to-b from-[#fee2d6] via-white to-[#e2f9fb] p-0 md:p-8 overflow-hidden overflow-y-auto">
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {/* Top left cloud */}
+        <img
+          src="/Vector1.svg"
+          alt=""
+          className="absolute top-[10%] left-[-15%] w-[200px] h-[100px] opacity-30"
+        />
+        
+        {/* Top right cloud */}
+        <img
+          src="/Vector.svg"
+          alt=""
+          className="absolute top-[5%] right-[5%] w-[120px] h-[60px] opacity-40"
+        />
+        
+        {/* Middle left cloud */}
+        <img
+          src="/Vector1.svg"
+          alt=""
+          className="absolute top-[60%] left-[25%] w-[250px] h-[150px]"
+        />
+        
+        {/* Bottom right cloud */}
+        <img
+          src="/Vector.svg"
+          alt=""
+          className="absolute top-[50%] right-[15%] w-[150px] h-[70px] opacity-50"
+        />
       </div>
-
-      {/* Card */}
-      <div style={{
-        background: 'white',
-        padding: '2rem',
-        borderRadius: '24px',
-        boxShadow: '0 10px 40px rgba(0,0,0,0.08)',
-        width: '100%',
-        maxWidth: '440px'
-      }}>
-        <h2 style={{ 
-          margin: '0 0 0.5rem 0', 
-          textAlign: 'center', 
-          color: '#1F2937',
-          fontSize: '1.5rem',
-          fontWeight: '600'
-        }}>
-          Create Account
-        </h2>
-        <p style={{
-          margin: '0 0 1.5rem 0',
-          textAlign: 'center',
-          color: '#6B7280',
-          fontSize: '0.9rem'
-        }}>
-          Start monitoring your baby&apos;s sleep
-        </p>
-
-        {error && (
-          <div style={{
-            background: '#FEF2F2',
-            color: '#DC2626',
-            padding: '0.875rem',
-            borderRadius: '12px',
-            marginBottom: '1.25rem',
-            textAlign: 'center',
-            fontSize: '0.9rem',
-            fontWeight: '500'
-          }}>
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {/* Parent Info Section */}
-          <div style={{
-            background: '#F9FAFB',
-            borderRadius: '16px',
-            padding: '1.25rem',
-            marginBottom: '0.5rem'
-          }}>
-            <p style={{ 
-              margin: '0 0 1rem 0', 
-              color: '#6B7280', 
-              fontSize: '0.8rem',
-              fontWeight: '600',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px'
-            }}>
-              👤 Parent Information
-            </p>
-
-            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
-              <div style={{ flex: 1 }}>
-                <label style={labelStyle}>First Name</label>
-                <input
-                  type="text"
-                  name="first_name"
-                  required
-                  value={form.first_name}
-                  onChange={handleChange}
-                  onFocus={handleFocus}
-                  onBlur={handleBlur}
-                  placeholder="John"
-                  style={inputStyle}
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={labelStyle}>Last Name</label>
-                <input
-                  type="text"
-                  name="last_name"
-                  required
-                  value={form.last_name}
-                  onChange={handleChange}
-                  onFocus={handleFocus}
-                  onBlur={handleBlur}
-                  placeholder="Doe"
-                  style={inputStyle}
-                />
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={labelStyle}>Username</label>
-              <input
-                type="text"
-                name="username"
-                required
-                value={form.username}
-                onChange={handleChange}
-                onFocus={handleFocus}
-                onBlur={handleBlur}
-                placeholder="johndoe"
-                style={inputStyle}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <div style={{ flex: 1 }}>
-                <label style={labelStyle}>Password</label>
-                <input
-                  type="password"
-                  name="password"
-                  required
-                  value={form.password}
-                  onChange={handleChange}
-                  onFocus={handleFocus}
-                  onBlur={handleBlur}
-                  placeholder="••••••••"
-                  style={inputStyle}
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={labelStyle}>Confirm</label>
-                <input
-                  type="password"
-                  name="repeat_password"
-                  required
-                  value={form.repeat_password}
-                  onChange={handleChange}
-                  onFocus={handleFocus}
-                  onBlur={handleBlur}
-                  placeholder="••••••••"
-                  style={inputStyle}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Baby Info Section */}
-          <div style={{
-            background: '#F0FDF9',
-            borderRadius: '16px',
-            padding: '1.25rem'
-          }}>
-            <p style={{ 
-              margin: '0 0 1rem 0', 
-              color: '#047857', 
-              fontSize: '0.8rem',
-              fontWeight: '600',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px'
-            }}>
-              👶 Baby Information
-            </p>
-
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={labelStyle}>Baby&apos;s First Name</label>
-              <input
-                type="text"
-                name="baby_first_name"
-                required
-                value={form.baby_first_name}
-                onChange={handleChange}
-                onFocus={handleFocus}
-                onBlur={handleBlur}
-                placeholder="Emma"
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Baby&apos;s Birthdate</label>
-              <input
-                type="date"
-                name="baby_birthdate"
-                required
-                value={form.baby_birthdate}
-                onChange={handleChange}
-                onFocus={handleFocus}
-                onBlur={handleBlur}
-                style={inputStyle}
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              background: loading 
-                ? '#E5E7EB' 
-                : 'linear-gradient(135deg, #FFD166 0%, #FFB84D 100%)',
-              border: 'none',
-              borderRadius: '12px',
-              padding: '1rem',
-              fontSize: '1rem',
-              fontWeight: '600',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              marginTop: '0.5rem',
-              color: loading ? '#9CA3AF' : '#1F2937',
-              boxShadow: loading ? 'none' : '0 4px 12px rgba(255, 209, 102, 0.3)',
-              transition: 'all 0.2s'
-            }}
-          >
-            {loading ? 'Creating Account...' : 'Create Account'}
-          </button>
-        </form>
-
-        <div style={{ 
-          textAlign: 'center', 
-          marginTop: '1.5rem',
-          paddingTop: '1.25rem',
-          borderTop: '1px solid #F3F4F6'
-        }}>
-          <p style={{ color: '#6B7280', margin: 0, fontSize: '0.9rem' }}>
-            Already have an account?{' '}
-            <button
-              onClick={() => navigate('/login')}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#3B82F6',
-                cursor: 'pointer',
-                fontWeight: '600',
-                fontSize: '0.9rem',
-                padding: 0
-              }}
-            >
-              Sign in
-            </button>
-          </p>
+      <div className="w-full h-full md:h-auto md:max-w-md lg:max-w-lg relative flex flex-col items-center justify-center min-h-screen md:min-h-[600px] isolate px-6 py-8">
+        
+        {/* Logo - clickable to go back to welcome */}
+        <div 
+          className="text-center mb-6"
+          style={{
+            animation: 'fadeIn 0.8s ease-in backwards'
+          }}
+        >
+          <img
+            src="/logo.svg"
+            alt="Nappi logo"
+            className="w-28 h-auto mx-auto"
+          />
         </div>
+
+        {/* Signup Card */}
+        <div 
+          className="w-full max-w-[440px] bg-white/80 backdrop-blur-sm rounded-[24px] shadow-lg p-6 md:p-8 mb-8"
+          style={{
+            animation: 'fadeIn 0.8s ease-in backwards'
+          }}
+        >
+          <h2 className="text-2xl font-semibold font-[Kodchasan] text-[#000] text-center mb-2">
+            Create Account
+          </h2>
+          <p className="text-sm text-gray-600 text-center mb-6">
+            Start monitoring your baby&apos;s sleep
+          </p>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl mb-5 text-center text-sm font-medium">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            {/* Parent Info Section */}
+            <div className="bg-gradient-to-br from-[#fee2d6]/30 to-[#fff5e6]/30 rounded-2xl p-5 border border-[#fee2d6]">
+              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <span>👤</span> Parent Information
+              </p>
+
+              <div className="flex gap-3 mb-4">
+                <div className="flex-1">
+                  <label className="block mb-2 text-sm font-medium text-gray-700">
+                    First Name
+                  </label>
+                  <input
+                    type="text"
+                    name="first_name"
+                    required
+                    value={form.first_name}
+                    onChange={handleChange}
+                    placeholder="John"
+                    className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-base outline-none transition-all duration-200 focus:border-[#ffc857] focus:shadow-[0_0_0_3px_rgba(255,200,87,0.2)]"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block mb-2 text-sm font-medium text-gray-700">
+                    Last Name
+                  </label>
+                  <input
+                    type="text"
+                    name="last_name"
+                    required
+                    value={form.last_name}
+                    onChange={handleChange}
+                    placeholder="Doe"
+                    className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-base outline-none transition-all duration-200 focus:border-[#ffc857] focus:shadow-[0_0_0_3px_rgba(255,200,87,0.2)]"
+                  />
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <label className="block mb-2 text-sm font-medium text-gray-700">
+                  Username
+                </label>
+                <input
+                  type="text"
+                  name="username"
+                  required
+                  value={form.username}
+                  onChange={handleChange}
+                  placeholder="johndoe"
+                  className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-base outline-none transition-all duration-200 focus:border-[#ffc857] focus:shadow-[0_0_0_3px_rgba(255,200,87,0.2)]"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block mb-2 text-sm font-medium text-gray-700">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    name="password"
+                    required
+                    value={form.password}
+                    onChange={handleChange}
+                    placeholder="••••••••"
+                    className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-base outline-none transition-all duration-200 focus:border-[#ffc857] focus:shadow-[0_0_0_3px_rgba(255,200,87,0.2)]"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block mb-2 text-sm font-medium text-gray-700">
+                    Confirm
+                  </label>
+                  <input
+                    type="password"
+                    name="repeat_password"
+                    required
+                    value={form.repeat_password}
+                    onChange={handleChange}
+                    placeholder="••••••••"
+                    className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-base outline-none transition-all duration-200 focus:border-[#ffc857] focus:shadow-[0_0_0_3px_rgba(255,200,87,0.2)]"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Baby Info Section */}
+            <div className="bg-gradient-to-br from-[#e2f9fb]/40 to-[#d4f4f7]/30 rounded-2xl p-5 border border-[#b8eef3]">
+              <p className="text-xs font-semibold text-[#047857] uppercase tracking-wider mb-4 flex items-center gap-2">
+                <span>👶</span> Baby Information
+              </p>
+
+              <div className="mb-4">
+                <label className="block mb-2 text-sm font-medium text-gray-700">
+                  Baby&apos;s First Name
+                </label>
+                <input
+                  type="text"
+                  name="baby_first_name"
+                  required
+                  value={form.baby_first_name}
+                  onChange={handleChange}
+                  placeholder="Emma"
+                  className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-base outline-none transition-all duration-200 focus:border-[#4ECDC4] focus:shadow-[0_0_0_3px_rgba(78,205,196,0.2)]"
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 text-sm font-medium text-gray-700">
+                  Baby&apos;s Birthdate
+                </label>
+                <input
+                  type="date"
+                  name="baby_birthdate"
+                  required
+                  value={form.baby_birthdate}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-base outline-none transition-all duration-200 focus:border-[#4ECDC4] focus:shadow-[0_0_0_3px_rgba(78,205,196,0.2)]"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className={`w-full py-3.5 rounded-xl text-base font-semibold mt-2 transition-all duration-200 ${
+                loading
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-[#ffc857] hover:bg-[#ffb83d] text-[#000] shadow-md hover:shadow-lg active:scale-[0.98]'
+              }`}
+            >
+              {loading ? 'Creating Account...' : 'Create Account'}
+            </button>
+          </form>
+
+          <div className="text-center mt-6 pt-6 border-t border-gray-200">
+            <p className="text-gray-600 text-sm">
+              Already have an account?{' '}
+              <button
+                onClick={() => navigate('/login')}
+                className="text-[#4ECDC4] hover:text-[#3db8b0] font-semibold transition-colors"
+              >
+                Sign in
+              </button>
+            </p>
+          </div>
+        </div>
+
+        {/* CSS animations */}
+        <style>{`
+          @keyframes fadeIn {
+            from {
+              opacity: 0;
+              transform: translateY(-10px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+        `}</style>
       </div>
     </div>
   );
