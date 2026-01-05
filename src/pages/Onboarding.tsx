@@ -4,6 +4,8 @@ import { authApi } from '../api/auth';
 import type { AuthUser } from '../types/auth';
 
 const Onboarding: React.FC = () => {
+  console.log('New Onboarding UI rendering');  // Debug: Confirm new code runs
+
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -53,196 +55,140 @@ const Onboarding: React.FC = () => {
     }
   };
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '1rem',
-    borderRadius: '12px',
-    border: '2px solid #E5E7EB',
-    fontSize: '1rem',
-    boxSizing: 'border-box',
-    outline: 'none',
-    transition: 'border-color 0.2s, box-shadow 0.2s',
-    background: '#FAFAFA'
-  };
-
-  const handleFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
-    e.target.style.borderColor = '#7DD3C8';
-    e.target.style.boxShadow = '0 0 0 3px rgba(125, 211, 200, 0.2)';
-  };
-
-  const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
-    e.target.style.borderColor = '#E5E7EB';
-    e.target.style.boxShadow = 'none';
-  };
-
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '2rem 1.5rem',
-      background: 'linear-gradient(160deg, #E0F7F5 0%, #E8F4FD 50%, #E6F7FF 100%)'
-    }}>
-      {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-        <div style={{
-          width: '100px',
-          height: '100px',
-          background: 'linear-gradient(135deg, #B4E7E5 0%, #7DD3C8 100%)',
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          margin: '0 auto 1.25rem',
-          fontSize: '3rem',
-          boxShadow: '0 12px 32px rgba(125, 211, 200, 0.35)'
-        }}>
-          👶
+    <div className="min-h-screen w-screen flex items-center justify-center bg-gradient-to-b from-[#fee2d6] via-white to-[#e2f9fb] p-0 md:p-8 overflow-hidden relative">
+      {/* Decorative clouds */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <img
+          src="/Vector1.svg"
+          alt=""
+          className="absolute top-[15%] left-[-10%] w-[200px] h-[100px] opacity-20"
+        />
+        <img
+          src="/Vector.svg"
+          alt=""
+          className="absolute top-[10%] right-[5%] w-[120px] h-[60px] opacity-30"
+        />
+        <img
+          src="/Vector1.svg"
+          alt=""
+          className="absolute bottom-[20%] left-[5%] w-[180px] h-[100px] opacity-25"
+        />
+        <img
+          src="/Vector.svg"
+          alt=""
+          className="absolute bottom-[30%] right-[-5%] w-[150px] h-[70px] opacity-20"
+        />
+      </div>
+
+      <div className="w-full h-full md:h-auto md:max-w-md lg:max-w-lg relative flex flex-col items-center justify-center min-h-screen md:min-h-[600px] isolate px-6 py-8">
+        
+        {/* Header with logo */}
+        <div 
+          className="text-center mb-8"
+          style={{
+            animation: 'fadeIn 0.6s ease-in backwards'
+          }}
+        >
+          <div className="w-[100px] h-[100px] mx-auto mb-5 rounded-full bg-gradient-to-br from-[#B4E7E5] to-[#7DD3C8] flex items-center justify-center text-5xl shadow-lg">
+            👶
+          </div>
+          <h2 className="text-3xl font-bold text-[#000] mb-2">
+            Almost there!
+          </h2>
+          <p className="text-base text-gray-600 max-w-[300px] mx-auto">
+            {user ? `Hi ${user.username}! Let's add your baby to start monitoring` : 'Loading...'}
+          </p>
         </div>
-        <h2 style={{
-          margin: '0 0 0.5rem 0',
-          fontSize: '1.75rem',
-          color: '#1F2937',
-          fontWeight: '700'
-        }}>
-          Almost there!
-        </h2>
-        <p style={{
-          margin: 0,
-          fontSize: '1rem',
-          color: '#6B7280',
-          maxWidth: '300px'
-        }}>
-          {user ? `Hi ${user.username}! Let's add your baby to start monitoring` : 'Loading...'}
-        </p>
-      </div>
 
-      {/* Card */}
-      <div style={{
-        background: 'white',
-        padding: '2rem',
-        borderRadius: '24px',
-        boxShadow: '0 10px 40px rgba(0,0,0,0.08)',
-        width: '100%',
-        maxWidth: '400px'
-      }}>
-        {error && (
-          <div style={{
-            background: '#FEF2F2',
-            color: '#DC2626',
-            padding: '0.875rem',
-            borderRadius: '12px',
-            marginBottom: '1.25rem',
-            textAlign: 'center',
-            fontSize: '0.9rem',
-            fontWeight: '500'
-          }}>
-            {error}
-          </div>
-        )}
+        {/* Form Card */}
+        <div 
+          className="w-full max-w-[400px] bg-white/90 backdrop-blur-sm rounded-[20px] shadow-lg p-6 md:p-8"
+          style={{
+            animation: 'fadeIn 0.8s ease-in 0.2s backwards'
+          }}
+        >
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl mb-5 text-center text-sm font-medium">
+              {error}
+            </div>
+          )}
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <div>
-            <label style={{
-              display: 'block',
-              marginBottom: '0.5rem',
-              fontWeight: '500',
-              color: '#374151',
-              fontSize: '0.9rem'
-            }}>
-              Baby&apos;s First Name
-            </label>
-            <input
-              type="text"
-              required
-              value={babyName}
-              onChange={e => setBabyName(e.target.value)}
-              onFocus={handleFocus}
-              onBlur={handleBlur}
-              placeholder="Enter baby's name"
-              style={inputStyle}
-            />
-          </div>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            <div>
+              <label className="block mb-2 text-sm font-semibold text-[#000]">
+                Baby&apos;s First Name
+              </label>
+              <input
+                type="text"
+                required
+                value={babyName}
+                onChange={e => setBabyName(e.target.value)}
+                placeholder="Enter baby's name"
+                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-base outline-none transition-all duration-200 focus:border-[#7DD3C8] focus:shadow-[0_0_0_3px_rgba(125,211,200,0.2)] focus:bg-white"
+              />
+            </div>
 
-          <div>
-            <label style={{
-              display: 'block',
-              marginBottom: '0.5rem',
-              fontWeight: '500',
-              color: '#374151',
-              fontSize: '0.9rem'
-            }}>
-              Birthdate
-            </label>
-            <input
-              type="date"
-              required
-              value={birthdate}
-              onChange={e => setBirthdate(e.target.value)}
-              onFocus={handleFocus}
-              onBlur={handleBlur}
-              style={inputStyle}
-            />
-          </div>
+            <div>
+              <label className="block mb-2 text-sm font-semibold text-[#000]">
+                Birthdate
+              </label>
+              <input
+                type="date"
+                required
+                value={birthdate}
+                onChange={e => setBirthdate(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-base outline-none transition-all duration-200 focus:border-[#7DD3C8] focus:shadow-[0_0_0_3px_rgba(125,211,200,0.2)] focus:bg-white"
+              />
+            </div>
 
-          <div>
-            <label style={{
-              display: 'block',
-              marginBottom: '0.5rem',
-              fontWeight: '500',
-              color: '#374151',
-              fontSize: '0.9rem'
-            }}>
-              Gender <span style={{ color: '#9CA3AF', fontWeight: '400' }}>(optional)</span>
-            </label>
-            <select
-              value={gender}
-              onChange={e => setGender(e.target.value)}
-              onFocus={handleFocus}
-              onBlur={handleBlur}
-              style={inputStyle}
+            <div>
+              <label className="block mb-2 text-sm font-semibold text-[#000]">
+                Gender <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <select
+                value={gender}
+                onChange={e => setGender(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-base outline-none transition-all duration-200 focus:border-[#7DD3C8] focus:shadow-[0_0_0_3px_rgba(125,211,200,0.2)] focus:bg-white cursor-pointer"
+              >
+                <option value="">Prefer not to say</option>
+                <option value="male">Boy 👦</option>
+                <option value="female">Girl 👧</option>
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className={`w-full py-3.5 rounded-xl text-base font-semibold mt-2 transition-all duration-200 ${
+                loading
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-[#7DD3C8] to-[#5BC4B6] hover:from-[#6BC7BD] hover:to-[#4AB3A5] text-white shadow-md hover:shadow-lg active:scale-[0.98]'
+              }`}
             >
-              <option value="">Prefer not to say</option>
-              <option value="male">Boy 👦</option>
-              <option value="female">Girl 👧</option>
-            </select>
-          </div>
+              {loading ? 'Setting up...' : 'Start Monitoring 🚀'}
+            </button>
+          </form>
 
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              background: loading 
-                ? '#E5E7EB' 
-                : 'linear-gradient(135deg, #7DD3C8 0%, #5BC4B6 100%)',
-              border: 'none',
-              borderRadius: '12px',
-              padding: '1rem',
-              fontSize: '1rem',
-              fontWeight: '600',
-              color: loading ? '#9CA3AF' : 'white',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              marginTop: '0.5rem',
-              boxShadow: loading ? 'none' : '0 4px 12px rgba(125, 211, 200, 0.4)',
-              transition: 'all 0.2s'
-            }}
-          >
-            {loading ? 'Setting up...' : 'Start Monitoring 🚀'}
-          </button>
-        </form>
-
-        <p style={{
-          textAlign: 'center',
-          fontSize: '0.75rem',
-          color: '#9CA3AF',
-          marginTop: '1.5rem',
-          marginBottom: 0
-        }}>
-          You can update this information anytime in settings
-        </p>
+          <p className="text-center text-xs text-gray-400 mt-6 mb-0">
+            You can update this information anytime in settings
+          </p>
+        </div>
       </div>
+
+      {/* CSS animations */}
+      <style>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 };

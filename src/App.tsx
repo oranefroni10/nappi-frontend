@@ -26,7 +26,7 @@ const App: React.FC = () => {
       } />
       <Route path="/" element={
         <ProtectedRoute>
-          <Layout><HomeDashboard /></Layout>
+          <HomeDashboard />
         </ProtectedRoute>
       } />
       <Route path="/statistics" element={
