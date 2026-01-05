@@ -6,7 +6,7 @@ const Welcome = () => {
 
   return (
     // Full-screen container with background color - always fills viewport
-    <div className="min-h-screen w-screen flex items-center justify-center bg-gradient-to-b from-[#fee2d6] via-white to-[#e2f9fb] p-0 md:p-8 overflow-hidden relative">
+    <div className="min-h-screen w-screen flex items-center justify-center bg-gradient-to-b from-[#fee2d6] via-[#FAFBFC] to-[#e2f9fb] p-0 md:p-8 overflow-hidden relative">
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {/* Top left cloud */}
         <img

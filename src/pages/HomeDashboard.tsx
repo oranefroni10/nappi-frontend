@@ -80,6 +80,12 @@ const HomeDashboard: React.FC = () => {
     }
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('nappi_user');
+    setMenuOpen(false);
+    navigate('/login');
+  };
+
   const getMetricInfo = (metric: MetricType): string => {
     switch (metric) {
       case 'temp':
@@ -142,7 +148,7 @@ const HomeDashboard: React.FC = () => {
 
   return (
     // Outer container with full-screen gradient background
-    <div className="min-h-screen w-screen flex items-center justify-center bg-gradient-to-b from-[#fee2d6] via-[#FAFBFC] to-[#e2f9fb] p-0 md:p-8 overflow-hidden relative">
+    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-[#fee2d6] via-[#FAFBFC] to-[#e2f9fb] p-0 md:p-8 overflow-x-hidden relative">
       
       {/* Decorative background clouds */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -178,11 +184,11 @@ const HomeDashboard: React.FC = () => {
 
       {/* Burger Menu Sidebar */}
       <div 
-        className={`fixed top-0 left-0 h-full w-60 bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${
+        className={`fixed top-0 left-0 h-full w-60 bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${
           menuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="p-6">
+        <div className="flex-1 p-6 overflow-y-auto">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-xl font-semibold font-[Kodchasan]">Menu</h3>
             <button
@@ -202,27 +208,36 @@ const HomeDashboard: React.FC = () => {
               Home
             </button>
             <button
-              onClick={() => { navigate('/sleep-data'); setMenuOpen(false); }}
+              onClick={() => { navigate('/statistics'); setMenuOpen(false); }}
               className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 text-gray-700 font-medium transition-all"
             >
               <img src="/material-symbols-light-chart-data-outline.svg" alt="" className="w-5 h-5" />
               Statistics
             </button>
             <button
-              onClick={() => { navigate('/alerts'); setMenuOpen(false); }}
+              onClick={() => { navigate('/notifications'); setMenuOpen(false); }}
               className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 text-gray-700 font-medium transition-all"
             >
               <span className="text-xl">🔔</span>
               Alerts
             </button>
             <button
-              onClick={() => { navigate('/profile'); setMenuOpen(false); }}
+              onClick={() => { navigate('/user'); setMenuOpen(false); }}
               className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 text-gray-700 font-medium transition-all"
             >
               <span className="text-xl">👤</span>
               Profile
             </button>
           </nav>
+        </div>
+
+        {/* Logout Button at Bottom */}
+        <div className="p-6 border-t border-gray-200">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-gray-700 font-medium hover:bg-red-50 transition-all">
+            Log Out
+          </button>
         </div>
       </div>
 
@@ -504,7 +519,6 @@ const MetricCard: React.FC<{
 <div 
     onClick={onClick}
     className={`relative h-[115.8px] rounded-[42.7px] bg-white shrink-0 flex flex-col items-center pt-[9px] px-[23px] pb-[8.4px] box-border gap-[12.2px] cursor-pointer transition-all hover:shadow-lg ${
-      // Changed: Removed 'ring-2 ring-[#ffc857]' but kept shadow and overflow logic
       isOpen ? 'shadow-lg overflow-visible z-10' : 'overflow-hidden'
     }`}
   >
@@ -522,14 +536,12 @@ const MetricCard: React.FC<{
       </div>
     </div>
 
-    {/* New Position: Inside the card, absolutely centered */}
     {isOpen && (
       <img
         src="/open-box-nack.svg"
         alt=""
         className="absolute left-1/2 -translate-x-1/2 w-[109px] max-w-none pointer-events-none"
         style={{ 
-          // Adjust 'bottom' if you need the nack to sit higher or lower
           bottom: '-30px', 
           zIndex: 20,
           marginLeft: '25px'
