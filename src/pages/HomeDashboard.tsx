@@ -316,7 +316,7 @@ const HomeDashboard: React.FC = () => {
                 {getGreeting()}
               </h1>
               <p className="text-sm font-[Kodchasan] text-gray-600 m-0">
-                {user?.username || 'there'}
+                {`${user?.first_name} ${user?.last_name}` || 'there'}
               </p>
             </div>
 
