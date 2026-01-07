@@ -36,12 +36,12 @@ const App: React.FC = () => {
       } />
       <Route path="/user" element={
         <ProtectedRoute>
-          <Layout><UserProfile /></Layout>
+          <UserProfile />
         </ProtectedRoute>
       } />
       <Route path="/notifications" element={
         <ProtectedRoute>
-          <Layout><Notifications /></Layout>
+          <Notifications />
         </ProtectedRoute>
       } />
       

@@ -41,6 +41,7 @@ const HomeDashboard: React.FC = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [openMetric, setOpenMetric] = useState<MetricType>(null);
+  const [showSpinner, setShowSpinner] = useState(false);
 
   useEffect(() => {
     // Load user from localStorage
@@ -51,22 +52,48 @@ const HomeDashboard: React.FC = () => {
   }, []);
 
   const loadData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const [sleep, room] = await Promise.all([
-        fetchLastSleepSummary(),
-        fetchCurrentRoomMetrics(),
-      ]);
+  try {
+    setLoading(true);
+    setError(null);
+    setShowSpinner(false); // Reset spinner state
+    // 1. The Data Promise
+    const dataPromise = Promise.all([
+      fetchLastSleepSummary(),
+      fetchCurrentRoomMetrics(),
+    ]);
+    // 2. The 300ms Threshold Promise
+    const thresholdPromise = new Promise<string>((resolve) => 
+      setTimeout(() => resolve('timeout'), 300)
+    );
+    // 3. Race them
+    const winner = await Promise.race([
+      dataPromise.then(() => 'data'),
+      thresholdPromise
+    ]);
+    if (winner === 'data') {
+      // Scenario A: Fast (<300ms). Show no spinner, just render data.
+      const [sleep, room] = await dataPromise;
       setSleepSummary(sleep);
       setRoomMetrics(room);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to load data from server.');
-    } finally {
+      setLoading(false);
+    } else {
+      // Scenario B: Slow (>300ms). Show spinner AND wait 1.5s minimum.
+      setShowSpinner(true); 
+      
+      const minLoadingTime = new Promise(resolve => setTimeout(resolve, 1500));
+      const [[sleep, room]] = await Promise.all([
+        dataPromise,
+        minLoadingTime
+      ]);
+
+      setSleepSummary(sleep);
+      setRoomMetrics(room);
       setLoading(false);
     }
-  };
+  } catch (err) {
+      console.error(err);
+      setError('Failed to load data from server.');
+  }}
 
   useEffect(() => {
     loadData();
@@ -108,21 +135,33 @@ const HomeDashboard: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen w-screen flex items-center justify-center bg-gradient-to-b from-[#fee2d6] via-white to-[#e2f9fb] p-0 md:p-8 overflow-hidden">
-        <div className="text-center">
-          <div 
-            className="text-6xl mb-4"
-            style={{
-              animation: 'pulse 1.5s ease-in-out infinite'
-            }}
-          >
-            👶
+        
+        {/* Only show the Logo/Spinner if the threshold was crossed */}
+        {showSpinner && (
+          <div className="text-center flex flex-col items-center justify-center fade-in">
+            <img 
+              src="/logo.svg" 
+              alt="Loading..."
+              className="w-24 h-24 mb-6"
+              style={{
+                animation: 'pulse 1.5s ease-in-out infinite'
+              }}
+            />
+            <p className="text-gray-600 font-[Kodchasan]">Loading dashboard...</p>
           </div>
-          <p className="text-gray-600">Loading dashboard...</p>
-        </div>
+        )}
+
         <style>{`
           @keyframes pulse {
             0%, 100% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.7; transform: scale(1.05); }
+          }
+          .fade-in {
+            animation: fadeIn 0.3s ease-in;
+          }
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
           }
         `}</style>
       </div>
@@ -133,13 +172,24 @@ const HomeDashboard: React.FC = () => {
     return (
       <div className="min-h-screen w-screen flex items-center justify-center bg-gradient-to-b from-[#fee2d6] via-white to-[#e2f9fb] p-0 md:p-8 overflow-hidden">
         <div className="text-center bg-white/80 backdrop-blur-sm rounded-3xl p-8 shadow-lg max-w-md">
-          <div className="text-5xl mb-4">😔</div>
+          <div className="text-5xl mb-4">
+            <img 
+              src="/logo.svg" 
+              alt="Loading..."
+              className="w-24 h-24 mb-6"
+            ></img>
+          </div>
           <p className="text-red-600 mb-4 font-medium">{error}</p>
           <button
             onClick={loadData}
             className="bg-[#ffc857] hover:bg-[#ffb83d] text-black font-semibold px-6 py-3 rounded-xl transition-all shadow-md hover:shadow-lg active:scale-95"
           >
-            🔄 Retry
+            <img
+              src="/refresh.svg"
+              alt="refresh"
+              className="w-6 h-6"
+            />
+            retry
           </button>
         </div>
       </div>
@@ -147,7 +197,7 @@ const HomeDashboard: React.FC = () => {
   }
 
   return (
-    // Outer container with full-screen gradient background
+    // Outer container with full-screen gradient background - valid x slider dissapear
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-b from-[#fee2d6] via-[#FAFBFC] to-[#e2f9fb] p-0 md:p-8 overflow-x-hidden relative">
       
       {/* Decorative background clouds */}
