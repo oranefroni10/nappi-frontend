@@ -31,7 +31,7 @@ const App: React.FC = () => {
       } />
       <Route path="/statistics" element={
         <ProtectedRoute>
-          <Layout><Statistics /></Layout>
+          <Statistics />
         </ProtectedRoute>
       } />
       <Route path="/user" element={

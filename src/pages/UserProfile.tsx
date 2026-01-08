@@ -81,7 +81,7 @@ const UserProfile: React.FC = () => {
         setTimeout(() => {
             setIsChangePasswordOpen(false);
             setSuccess(null);
-        }, 1500);
+        }, 2000);
       } else {
         setError('Failed to update password.');
       }
@@ -264,9 +264,9 @@ const UserProfile: React.FC = () => {
                   <div className="border-gray-100 mt-1 pt-1">
                     <button 
                       onClick={() => setIsChangePasswordOpen(!isChangePasswordOpen)}
-                      className="w-full flex justify-between items-center py-2 text-left hover:bg-gray-50 rounded-lg transition-colors group"
+                      className="w-full flex justify-between items-center py-2 text-left rounded-lg"
                     >
-                      <span className="text-gray-600 text-sm group-hover:text-gray-900 transition-colors">
+                      <span className="text-gray-600 text-sm hover:text-gray-900 transition-colors">
                         Change Password
                       </span>
                       <span className={`text-gray-400 text-xs transition-transform duration-300 ${isChangePasswordOpen ? 'rotate-180' : ''}`}>
