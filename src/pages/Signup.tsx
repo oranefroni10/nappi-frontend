@@ -40,6 +40,8 @@ const Signup: React.FC = () => {
         username: data.username,
         baby_id: data.baby?.id || null,
         baby: data.baby,
+        first_name: data.first_name,
+        last_name: data.last_name,
       }));
 
       if (data.baby_registered) {

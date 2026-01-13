@@ -1,7 +1,16 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import ReactECharts from 'echarts-for-react';
 import type { AuthUser } from '../types/auth';
+import type { SensorDataPoint, DailySleepPoint, SleepPattern } from '../types/metrics';
 import { useLayoutContext } from '../components/LayoutContext';
+import { fetchSensorStats, fetchDailySleep, fetchSleepPatterns } from '../api/stats';
+
+interface LocalSleepPattern {
+  label: string;
+  start: number;
+  end: number;
+  duration: number;
+}
 
 const Statistics: React.FC = () => {
   const { setMenuOpen } = useLayoutContext();
@@ -10,15 +19,30 @@ const Statistics: React.FC = () => {
   // Sensor graph state
   const [selectedSensor, setSelectedSensor] = useState<'temperature' | 'humidity' | 'noise'>('temperature');
   const [sensorDateRange, setSensorDateRange] = useState({
-    start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    start: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0],
   });
 
   // Sleep duration graph state
   const [sleepDateRange, setSleepDateRange] = useState({
-    start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    start: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0],
   });
+
+  // API data states
+  const [sensorData, setSensorData] = useState<SensorDataPoint[]>([]);
+  const [sleepDurationData, setSleepDurationData] = useState<DailySleepPoint[]>([]);
+  const [sleepPatterns, setSleepPatterns] = useState<LocalSleepPattern[]>([]);
+
+  // Loading states
+  const [sensorLoading, setSensorLoading] = useState(false);
+  const [sleepLoading, setSleepLoading] = useState(false);
+  const [patternsLoading, setPatternsLoading] = useState(false);
+
+  // Error states
+  const [sensorError, setSensorError] = useState<string | null>(null);
+  const [sleepError, setSleepError] = useState<string | null>(null);
+  const [patternsError, setPatternsError] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem('nappi_user');
@@ -27,73 +51,131 @@ const Statistics: React.FC = () => {
     }
   }, []);
 
+  const babyId = user?.baby_id;
   const babyName = user?.baby?.first_name || 'Baby';
 
-  const buildDateList = (startStr: string, endStr: string) => {
-    if (!startStr || !endStr) return [];
-
-    const [sy, sm, sd] = startStr.split('-').map(Number);
-    const [ey, em, ed] = endStr.split('-').map(Number);
-
-    const start = new Date(sy, sm - 1, sd);
-    const end = new Date(ey, em - 1, ed);
-
-    if (end < start) return [];
-
-    const out: string[] = [];
-    const cur = new Date(start);
-
-    while (cur <= end) {
-      const y = cur.getFullYear();
-      const m = String(cur.getMonth() + 1).padStart(2, '0');
-      const d = String(cur.getDate()).padStart(2, '0');
-      out.push(`${y}-${m}-${d}`);
-      cur.setDate(cur.getDate() + 1);
-    }
-
-    return out;
+  // Helper to convert time string "HH:MM" to decimal hours
+  const timeToDecimal = (timeStr: string): number => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours + minutes / 60;
   };
 
-  // Mock sensor data generator - MEMOIZED to prevent unnecessary recalculation
-  const sensorData = useMemo(() => {
-    const dates = buildDateList(sensorDateRange.start, sensorDateRange.end);
+  // Fetch sensor data when parameters change
+  const loadSensorData = useCallback(async () => {
+    if (!babyId) {
+      console.warn('No baby_id available, skipping sensor data fetch');
+      setSensorError('Please log in to view statistics');
+      return;
+    }
 
-    const sensorConfigs = {
-      temperature: { min: 20, max: 25, unit: '°C' },
-      humidity: { min: 40, max: 60, unit: '%' },
-      noise: { min: 30, max: 50, unit: 'dB' },
-    };
+    setSensorLoading(true);
+    setSensorError(null);
 
-    const config = sensorConfigs[selectedSensor];
+    try {
+      console.log(`Fetching sensor data for baby ${babyId}: ${selectedSensor} from ${sensorDateRange.start} to ${sensorDateRange.end}`);
+      const response = await fetchSensorStats(
+        babyId,
+        selectedSensor,
+        sensorDateRange.start,
+        sensorDateRange.end
+      );
+      console.log('Sensor data response:', response);
+      setSensorData(response.data);
+    } catch (err: any) {
+      console.error('Failed to fetch sensor data:', err);
+      console.error('Error response:', err.response);
+      const message = err.response?.data?.detail || 'Failed to load sensor data';
+      setSensorError(typeof message === 'string' ? message : 'Failed to load sensor data');
+      setSensorData([]);
+    } finally {
+      setSensorLoading(false);
+    }
+  }, [babyId, selectedSensor, sensorDateRange.start, sensorDateRange.end]);
 
-    return dates.map((date) => ({
-      date,
-      value: +(config.min + Math.random() * (config.max - config.min)).toFixed(1),
-    }));
-  }, [sensorDateRange.start, sensorDateRange.end, selectedSensor]);
+  // Fetch sleep duration data when parameters change
+  const loadSleepData = useCallback(async () => {
+    if (!babyId) return;
 
-  // MEMOIZED sleep duration data
-  const sleepDurationData = useMemo(() => {
-    const dates = buildDateList(sleepDateRange.start, sleepDateRange.end);
+    setSleepLoading(true);
+    setSleepError(null);
 
-    return dates.map((date) => {
-      const hours = +(10 + Math.random() * 4).toFixed(1);
-      const sessions = 2 + Math.floor(Math.random() * 3);
-      return { date, hours, sessions };
-    });
-  }, [sleepDateRange.start, sleepDateRange.end]);
+    try {
+      const response = await fetchDailySleep(
+        babyId,
+        sleepDateRange.start,
+        sleepDateRange.end
+      );
+      setSleepDurationData(response.data);
+    } catch (err: any) {
+      console.error('Failed to fetch sleep data:', err);
+      const message = err.response?.data?.detail || 'Failed to load sleep data';
+      setSleepError(typeof message === 'string' ? message : 'Failed to load sleep data');
+      setSleepDurationData([]);
+    } finally {
+      setSleepLoading(false);
+    }
+  }, [babyId, sleepDateRange.start, sleepDateRange.end]);
 
-  // Mock sleep patterns data (24-hour visualization) - STATIC, no dependencies
-  const sleepPatterns = useMemo(
-    () => [
-      { label: 'Morning nap', start: 8.75, end: 10.83, duration: 2.08 },
-      { label: 'Afternoon nap', start: 14.25, end: 16.25, duration: 2.0 },
-      { label: 'Night sleep', start: 20.25, end: 30.25, duration: 10.0 },
-    ],
-    []
-  );
+  // Fetch sleep patterns for current month
+  const loadPatternsData = useCallback(async () => {
+    if (!babyId) return;
 
-  // Sensor chart options - MEMOIZED
+    setPatternsLoading(true);
+    setPatternsError(null);
+
+    try {
+      const now = new Date();
+      const response = await fetchSleepPatterns(babyId, now.getMonth() + 1, now.getFullYear());
+
+      // Transform API patterns to local format for the chart
+      const transformed: LocalSleepPattern[] = response.patterns.map((p: SleepPattern) => {
+        const startDecimal = timeToDecimal(p.avg_start);
+        let endDecimal = timeToDecimal(p.avg_end);
+
+        // Handle overnight sleep (end time is next day)
+        if (endDecimal < startDecimal) {
+          endDecimal += 24;
+        }
+
+        return {
+          label: p.label,
+          start: startDecimal,
+          end: endDecimal,
+          duration: p.avg_duration_hours,
+        };
+      });
+
+      setSleepPatterns(transformed);
+    } catch (err: any) {
+      console.error('Failed to fetch sleep patterns:', err);
+      const message = err.response?.data?.detail || 'Failed to load sleep patterns';
+      setPatternsError(typeof message === 'string' ? message : 'Failed to load sleep patterns');
+      setSleepPatterns([]);
+    } finally {
+      setPatternsLoading(false);
+    }
+  }, [babyId]);
+
+  // Load data when baby ID is available
+  useEffect(() => {
+    if (babyId) {
+      loadSensorData();
+    }
+  }, [babyId, loadSensorData]);
+
+  useEffect(() => {
+    if (babyId) {
+      loadSleepData();
+    }
+  }, [babyId, loadSleepData]);
+
+  useEffect(() => {
+    if (babyId) {
+      loadPatternsData();
+    }
+  }, [babyId, loadPatternsData]);
+
+  // Sensor chart options
   const getSensorUnit = () => {
     const units = { temperature: '°C', humidity: '%', noise: 'dB' };
     return units[selectedSensor];
@@ -163,7 +245,7 @@ const Statistics: React.FC = () => {
     [sensorData, selectedSensor]
   );
 
-  // Sleep duration chart options - MEMOIZED
+  // Sleep duration chart options
   const sleepDurationOptions = useMemo(
     () => ({
       tooltip: {
@@ -171,7 +253,7 @@ const Statistics: React.FC = () => {
         formatter: (params: any) => {
           const point = params[0];
           const data = sleepDurationData[point.dataIndex];
-          return `${point.name}<br/>Total Sleep: ${point.value}h<br/>Sessions: ${data.sessions}`;
+          return `${point.name}<br/>Total Sleep: ${point.value}h<br/>Sessions: ${data?.sessions_count || 0}`;
         },
       },
       grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
@@ -183,8 +265,8 @@ const Statistics: React.FC = () => {
           type: 'bar',
           barWidth: '60%',
           data: sleepDurationData.map((d) => ({
-            value: d.hours,
-            itemStyle: { color: d.hours >= 12 ? '#10B981' : d.hours >= 10 ? '#6366F1' : '#F59E0B' },
+            value: d.total_hours,
+            itemStyle: { color: d.total_hours >= 12 ? '#10B981' : d.total_hours >= 10 ? '#6366F1' : '#F59E0B' },
           })),
           label: { show: false },
         },
@@ -193,14 +275,14 @@ const Statistics: React.FC = () => {
     [sleepDurationData]
   );
 
-  // FIX #1: Process sleep patterns with CONSISTENT BAR WIDTH
+  // Process sleep patterns for polar chart
   const processedSleepPatterns = useMemo(() => {
     return sleepPatterns.flatMap((p) => {
-      const crossesMidnight = p.end < p.start || p.end > 24;
+      const crossesMidnight = p.end > 24;
 
       if (crossesMidnight) {
         const endFirst = 24;
-        const endSecond = p.end > 24 ? p.end - 24 : p.end;
+        const endSecond = p.end - 24;
 
         return [
           {
@@ -229,7 +311,7 @@ const Statistics: React.FC = () => {
     });
   }, [sleepPatterns]);
 
-  // FIX #1: Sleep patterns chart with CONSISTENT BAR WIDTH - MEMOIZED
+  // Sleep patterns chart options
   const sleepPatternsOptions = useMemo(
     () => ({
       tooltip: {
@@ -298,13 +380,62 @@ const Statistics: React.FC = () => {
             roundCap: false,
             barWidth: 30,
             data: [{ value: [0, pattern.duration], customData: pattern }],
-            itemStyle: { color , shadowColor: 'rgba(0,0,0,0.12)', shadowOffsetY: 2,},
+            itemStyle: { color, shadowColor: 'rgba(0,0,0,0.12)', shadowOffsetY: 2 },
             z: 2,
           },
         ];
       }),
     }),
     [processedSleepPatterns, sleepPatterns]
+  );
+
+  // Generate dynamic legend based on actual patterns
+  const patternLegendItems = useMemo(() => {
+    return sleepPatterns.map((p) => {
+      let color = '#818CF8';
+      if (p.label.toLowerCase().includes('morning')) color = '#FCD34D';
+      if (p.label.toLowerCase().includes('afternoon')) color = '#60A5FA';
+
+      const formatTime = (hour: number) => {
+        const h = Math.floor(hour) % 24;
+        const m = Math.round((hour % 1) * 60);
+        const period = h >= 12 ? 'PM' : 'AM';
+        const displayHour = h > 12 ? h - 12 : h === 0 ? 12 : h;
+        return `${displayHour}:${m.toString().padStart(2, '0')} ${period}`;
+      };
+
+      const startTime = formatTime(p.start);
+      const endTime = formatTime(p.end > 24 ? p.end - 24 : p.end);
+
+      return { color, label: `${p.label} (${startTime}-${endTime})` };
+    });
+  }, [sleepPatterns]);
+
+  // Loading component
+  const LoadingSpinner = () => (
+    <div className="flex items-center justify-center h-[250px]">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4ECDC4]"></div>
+    </div>
+  );
+
+  // Error component
+  const ErrorMessage = ({ message, onRetry }: { message: string; onRetry: () => void }) => (
+    <div className="flex flex-col items-center justify-center h-[250px] text-center">
+      <p className="text-red-500 mb-3 text-sm">{message}</p>
+      <button
+        onClick={onRetry}
+        className="px-4 py-2 bg-[#4ECDC4] text-white rounded-lg text-sm hover:bg-[#3dbdb5] transition-colors"
+      >
+        Retry
+      </button>
+    </div>
+  );
+
+  // No data component
+  const NoData = ({ message }: { message: string }) => (
+    <div className="flex items-center justify-center h-[250px] text-gray-500 text-sm">
+      {message}
+    </div>
   );
 
   return (
@@ -333,7 +464,6 @@ const Statistics: React.FC = () => {
       {/* Main Content */}
       <section className="px-5 pb-8 relative z-10">
         <div className="flex flex-col gap-5">
-
           {/* Sensor Data Over Time */}
           <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-lg">
             <div className="flex flex-row justify-between items-start sm:items-center gap-3 mb-4">
@@ -366,7 +496,15 @@ const Statistics: React.FC = () => {
               />
             </div>
 
-            <ReactECharts option={sensorChartOptions} style={{ height: '250px' }} notMerge={true} lazyUpdate={true} />
+            {sensorLoading ? (
+              <LoadingSpinner />
+            ) : sensorError ? (
+              <ErrorMessage message={sensorError} onRetry={loadSensorData} />
+            ) : sensorData.length === 0 ? (
+              <NoData message="No sensor data available for this period" />
+            ) : (
+              <ReactECharts option={sensorChartOptions} style={{ height: '250px' }} notMerge={true} lazyUpdate={true} />
+            )}
           </div>
 
           {/* Sleep Duration Chart */}
@@ -391,26 +529,44 @@ const Statistics: React.FC = () => {
               />
             </div>
 
-            <ReactECharts option={sleepDurationOptions} style={{ height: '250px' }} notMerge={true} lazyUpdate={true} />
-
-            <div className="flex justify-center gap-4 mt-4 pt-4 border-t border-gray-100">
-              <LegendItem color="#10B981" label="Excellent (12+ hrs)" />
-              <LegendItem color="#6366F1" label="Good (10-12 hrs)" />
-              <LegendItem color="#F59E0B" label="Fair (<10 hrs)" />
-            </div>
+            {sleepLoading ? (
+              <LoadingSpinner />
+            ) : sleepError ? (
+              <ErrorMessage message={sleepError} onRetry={loadSleepData} />
+            ) : sleepDurationData.length === 0 ? (
+              <NoData message="No sleep data available for this period" />
+            ) : (
+              <>
+                <ReactECharts option={sleepDurationOptions} style={{ height: '250px' }} notMerge={true} lazyUpdate={true} />
+                <div className="flex justify-center gap-4 mt-4 pt-4 border-t border-gray-100">
+                  <LegendItem color="#10B981" label="Excellent (12+ hrs)" />
+                  <LegendItem color="#6366F1" label="Good (10-12 hrs)" />
+                  <LegendItem color="#F59E0B" label="Fair (<10 hrs)" />
+                </div>
+              </>
+            )}
           </div>
 
           {/* Sleep Patterns - 24 Hour Clock */}
           <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-lg">
             <h3 className="text-lg font-semibold text-[#000] mb-4 font-['Segoe_UI']">Typical Sleep Patterns (24-Hour Clock)</h3>
 
-            <ReactECharts option={sleepPatternsOptions} style={{ height: '300px' }} notMerge={true} lazyUpdate={true} />
-
-            <div className="flex justify-center gap-4 mt-4 pt-4 border-t border-gray-100">
-              <LegendItem color="#FCD34D" label="Morning Nap (8:45-10:50)" />
-              <LegendItem color="#60A5FA" label="Afternoon Nap (2:15-4:15)" />
-              <LegendItem color="#818CF8" label="Night Sleep (8:15 PM-6:15 AM)" />
-            </div>
+            {patternsLoading ? (
+              <LoadingSpinner />
+            ) : patternsError ? (
+              <ErrorMessage message={patternsError} onRetry={loadPatternsData} />
+            ) : sleepPatterns.length === 0 ? (
+              <NoData message="No sleep patterns detected yet" />
+            ) : (
+              <>
+                <ReactECharts option={sleepPatternsOptions} style={{ height: '300px' }} notMerge={true} lazyUpdate={true} />
+                <div className="flex flex-wrap justify-center gap-4 mt-4 pt-4 border-t border-gray-100">
+                  {patternLegendItems.map((item, index) => (
+                    <LegendItem key={index} color={item.color} label={item.label} />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Insights Card */}
@@ -419,17 +575,43 @@ const Statistics: React.FC = () => {
               Weekly Insights
             </h3>
 
-            <ul className="m-0 pl-5 text-[#78350F] leading-relaxed text-sm">
-              <li className="mb-2">
-                {babyName} slept best on <strong>Friday</strong> with 13.5 hours
-              </li>
-              <li className="mb-2">
-                Room temperature around <strong>22°C</strong> correlates with better sleep
-              </li>
-              <li>
-                Morning nap typically starts at <strong>8:45 AM</strong> - great for scheduling activities
-              </li>
-            </ul>
+            {sleepDurationData.length > 0 ? (
+              <ul className="m-0 pl-5 text-[#78350F] leading-relaxed text-sm">
+                {(() => {
+                  // Find best sleep day
+                  const bestDay = sleepDurationData.reduce((best, curr) =>
+                    curr.total_hours > best.total_hours ? curr : best
+                  , sleepDurationData[0]);
+                  const avgSleep = sleepDurationData.reduce((sum, d) => sum + d.total_hours, 0) / sleepDurationData.length;
+
+                  return (
+                    <>
+                      <li className="mb-2">
+                        {babyName} slept best on <strong>{new Date(bestDay.date).toLocaleDateString('en-US', { weekday: 'long' })}</strong> with {bestDay.total_hours.toFixed(1)} hours
+                      </li>
+                      <li className="mb-2">
+                        Average sleep over this period: <strong>{avgSleep.toFixed(1)} hours/day</strong>
+                      </li>
+                      {sleepPatterns.length > 0 && (
+                        <li>
+                          {sleepPatterns[0].label} typically starts at <strong>{(() => {
+                            const h = Math.floor(sleepPatterns[0].start);
+                            const m = Math.round((sleepPatterns[0].start % 1) * 60);
+                            const period = h >= 12 ? 'PM' : 'AM';
+                            const displayHour = h > 12 ? h - 12 : h === 0 ? 12 : h;
+                            return `${displayHour}:${m.toString().padStart(2, '0')} ${period}`;
+                          })()}</strong>
+                        </li>
+                      )}
+                    </>
+                  );
+                })()}
+              </ul>
+            ) : (
+              <p className="text-[#78350F] text-sm">
+                Start tracking {babyName}&apos;s sleep to see personalized insights here!
+              </p>
+            )}
           </div>
         </div>
       </section>
