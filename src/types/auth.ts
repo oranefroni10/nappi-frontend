@@ -67,3 +67,28 @@ export interface changePasswordRequest {
 export interface changePasswordResponse {
   password_changed: boolean;
 }
+
+// Baby notes (multi-note system)
+export interface BabyNote {
+  id: number;
+  baby_id: number;
+  title: string;
+  content: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface NotesListResponse {
+  baby_id: number;
+  notes: BabyNote[];
+}
+
+export interface NoteCreateRequest {
+  title: string;
+  content: string;
+}
+
+export interface NoteUpdateRequest {
+  title: string;
+  content: string;
+}

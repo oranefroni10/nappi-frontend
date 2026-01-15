@@ -7,6 +7,10 @@ import type {
   RegisterBabyRequest,
   changePasswordRequest,
   changePasswordResponse,
+  BabyNote,
+  NotesListResponse,
+  NoteCreateRequest,
+  NoteUpdateRequest,
 } from '../types/auth';
 
 export const authApi = {
@@ -23,15 +27,29 @@ export const authApi = {
     api.post<changePasswordResponse>('/auth/change-password', data),
 };
 
-// Baby-specific API endpoints
+// Baby notes API endpoints (multi-note system)
 export const babiesApi = {
+  // List all notes for a baby
   getNotes: (babyId: number, userId: number) =>
-    api.get<{ baby_id: number; notes: string | null }>(`/babies/${babyId}/notes`, {
+    api.get<NotesListResponse>(`/babies/${babyId}/notes`, {
       params: { user_id: userId },
     }),
 
-  updateNotes: (babyId: number, userId: number, notes: string) =>
-    api.put<{ success: boolean; notes: string }>(`/babies/${babyId}/notes`, { notes }, {
+  // Create a new note
+  createNote: (babyId: number, userId: number, data: NoteCreateRequest) =>
+    api.post<BabyNote>(`/babies/${babyId}/notes`, data, {
+      params: { user_id: userId },
+    }),
+
+  // Update an existing note
+  updateNote: (babyId: number, noteId: number, userId: number, data: NoteUpdateRequest) =>
+    api.put<BabyNote>(`/babies/${babyId}/notes/${noteId}`, data, {
+      params: { user_id: userId },
+    }),
+
+  // Delete a note
+  deleteNote: (babyId: number, noteId: number, userId: number) =>
+    api.delete<{ success: boolean; message: string }>(`/babies/${babyId}/notes/${noteId}`, {
       params: { user_id: userId },
     }),
 };

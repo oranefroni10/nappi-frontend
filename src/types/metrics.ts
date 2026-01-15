@@ -96,3 +96,130 @@ export interface OptimalStatsResponse {
   noise: number | null;
   has_data: boolean;
 }
+
+// ========== AI-Powered Insights Types ==========
+
+// --- Structured Insights ---
+
+export interface StructuredInsight {
+  likely_cause: string;
+  actionable_tips: string[];
+  environment_assessment: string;
+  age_context: string;
+  sleep_quality_note: string;
+}
+
+export interface EnhancedInsightsResponse {
+  baby_id: number;
+  event_id: number | null;
+  awakened_at: string | null;
+  sleep_duration_minutes: number | null;
+  environmental_changes: Record<string, EnvironmentalChange>;
+  insights: StructuredInsight | null;
+  simple_insight: string | null;
+  correlation_id: number | null;
+}
+
+// --- Trend Analysis ---
+
+export interface AgeRecommendation {
+  min_hours: number;
+  max_hours: number;
+  typical_naps: string;
+  night_hours: string;
+}
+
+export interface WeeklyTrend {
+  avg_sleep_hours: number;
+  trend: 'improving' | 'declining' | 'stable';
+  trend_percentage: number;
+  consistency_score: number;
+  total_sessions: number;
+  avg_sessions_per_day: number;
+  best_day: string | null;
+  worst_day: string | null;
+}
+
+export interface MonthlyTrend {
+  avg_sleep_hours: number;
+  trend: 'improving' | 'declining' | 'stable';
+  trend_percentage: number;
+  consistency_score: number;
+  total_sessions: number;
+}
+
+export interface AITrendInsights {
+  summary: string;
+  highlights: string[];
+  concerns: string[];
+  recommendations: string[];
+  age_comparison: string;
+}
+
+export interface TrendsResponse {
+  baby_id: number;
+  baby_name: string;
+  age_months: number;
+  age_recommendation: AgeRecommendation;
+  weekly: WeeklyTrend | null;
+  monthly: MonthlyTrend | null;
+  ai_insights: AITrendInsights | null;
+}
+
+// --- Schedule Prediction ---
+
+export interface WakeWindowRange {
+  min: number;
+  max: number;
+}
+
+export interface NextSleepPrediction {
+  predicted_time: string;
+  predicted_time_formatted: string;
+  confidence: 'high' | 'medium' | 'low';
+  type: 'nap' | 'bedtime';
+  based_on: string;
+  minutes_until: number;
+  wake_window_status: string;
+}
+
+export interface SchedulePredictionResponse {
+  baby_id: number;
+  generated_at: string;
+  wake_window_range_hours: WakeWindowRange;
+  optimal_bedtime: string;
+  current_wake_duration_minutes: number | null;
+  next_sleep: NextSleepPrediction | null;
+  suggestions: string[];
+}
+
+// --- AI Summary (Home Dashboard) ---
+
+export interface SleepQualitySummary {
+  last_sleep_hours: number | null;
+  last_sleep_quality: 'good' | 'fair' | 'poor' | null;
+  trend_direction: 'improving' | 'stable' | 'declining' | null;
+  message: string;
+}
+
+export interface EnvironmentStatus {
+  status: 'optimal' | 'needs_attention' | 'unknown';
+  temperature_status: string | null;
+  humidity_status: string | null;
+  noise_status: string | null;
+  message: string;
+}
+
+export interface AISummaryResponse {
+  baby_id: number;
+  baby_name: string;
+  generated_at: string;
+  sleep_summary: SleepQualitySummary;
+  environment: EnvironmentStatus;
+  next_sleep_prediction: string | null;
+  next_sleep_time: string | null;
+  todays_tip: string;
+  weekly_trend: 'improving' | 'stable' | 'declining' | null;
+  trend_message: string | null;
+  quick_insights: string[];
+}

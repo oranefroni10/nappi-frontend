@@ -5,6 +5,10 @@ import type {
   DailySleepResponse,
   InsightsResponse,
   OptimalStatsResponse,
+  TrendsResponse,
+  SchedulePredictionResponse,
+  AISummaryResponse,
+  EnhancedInsightsResponse,
 } from '../types/metrics';
 
 /**
@@ -92,6 +96,62 @@ export async function fetchOptimalStats(
 ): Promise<OptimalStatsResponse> {
   const res = await api.get<OptimalStatsResponse>('/stats/optimal', {
     params: { baby_id: babyId },
+  });
+  return res.data;
+}
+
+/**
+ * Fetch comprehensive sleep trend analysis for a baby.
+ * Returns 7-day and 30-day trends with AI-generated insights.
+ */
+export async function fetchTrends(
+  babyId: number
+): Promise<TrendsResponse> {
+  const res = await api.get<TrendsResponse>('/stats/trends', {
+    params: { baby_id: babyId },
+  });
+  return res.data;
+}
+
+/**
+ * Fetch schedule prediction for a baby.
+ * Predicts next sleep window based on patterns and wake windows.
+ */
+export async function fetchSchedulePrediction(
+  babyId: number
+): Promise<SchedulePredictionResponse> {
+  const res = await api.get<SchedulePredictionResponse>('/stats/schedule-prediction', {
+    params: { baby_id: babyId },
+  });
+  return res.data;
+}
+
+/**
+ * Fetch comprehensive AI summary for the home dashboard.
+ * Combines sleep quality, environment, predictions, and tips.
+ */
+export async function fetchAISummary(
+  babyId: number
+): Promise<AISummaryResponse> {
+  const res = await api.get<AISummaryResponse>('/stats/ai-summary', {
+    params: { baby_id: babyId },
+  });
+  return res.data;
+}
+
+/**
+ * Fetch enhanced AI insights with structured multi-section response.
+ * Returns detailed analysis including likely cause, tips, and context.
+ */
+export async function fetchEnhancedInsights(
+  babyId: number,
+  eventId?: number
+): Promise<EnhancedInsightsResponse> {
+  const params: Record<string, number> = { baby_id: babyId };
+  if (eventId !== undefined) params.event_id = eventId;
+
+  const res = await api.get<EnhancedInsightsResponse>('/stats/insights-enhanced', {
+    params,
   });
   return res.data;
 }
