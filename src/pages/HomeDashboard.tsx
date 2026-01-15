@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { fetchLastSleepSummary } from '../api/sleep';
 import { fetchCurrentRoomMetrics } from '../api/room';
 import { fetchSleepStatus, fetchCooldownStatus, submitIntervention } from '../api/alerts';
-import { fetchOptimalStats, fetchInsights } from '../api/stats';
-import type { LastSleepSummary, RoomMetrics, OptimalStatsResponse, InsightsResponse } from '../types/metrics';
+import { fetchOptimalStats, fetchInsights, fetchAISummary, fetchSchedulePrediction } from '../api/stats';
+import type { LastSleepSummary, RoomMetrics, OptimalStatsResponse, InsightsResponse, AISummaryResponse, SchedulePredictionResponse } from '../types/metrics';
 import type { AuthUser } from '../types/auth';
 import { useLayoutContext } from '../components/LayoutContext';
 
@@ -68,6 +68,13 @@ const HomeDashboard: React.FC = () => {
   
   // Insights state
   const [insights, setInsights] = useState<InsightsResponse | null>(null);
+  
+  // AI Summary state (rich multi-section recommendations)
+  const [aiSummary, setAiSummary] = useState<AISummaryResponse | null>(null);
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
+  
+  // Schedule prediction state
+  const [schedulePrediction, setSchedulePrediction] = useState<SchedulePredictionResponse | null>(null);
 
   useEffect(() => {
     // Load user from localStorage
@@ -155,6 +162,29 @@ const HomeDashboard: React.FC = () => {
     }
   }, []);
 
+  // Load comprehensive AI summary for the baby
+  const loadAISummary = useCallback(async (babyId: number) => {
+    setAiSummaryLoading(true);
+    try {
+      const summaryData = await fetchAISummary(babyId);
+      setAiSummary(summaryData);
+    } catch (err) {
+      console.error('Failed to load AI summary:', err);
+    } finally {
+      setAiSummaryLoading(false);
+    }
+  }, []);
+
+  // Load schedule prediction for the baby
+  const loadSchedulePrediction = useCallback(async (babyId: number) => {
+    try {
+      const predictionData = await fetchSchedulePrediction(babyId);
+      setSchedulePrediction(predictionData);
+    } catch (err) {
+      console.error('Failed to load schedule prediction:', err);
+    }
+  }, []);
+
   // Handle parent intervention
   const handleIntervention = async () => {
     const babyId = user?.baby?.id;
@@ -184,8 +214,10 @@ const HomeDashboard: React.FC = () => {
       loadSleepStatus(babyId);
       loadOptimalStats(babyId);
       loadInsights(babyId);
+      loadAISummary(babyId);
+      loadSchedulePrediction(babyId);
     }
-  }, [user?.baby_id, user?.baby?.id, loadData, loadSleepStatus, loadOptimalStats, loadInsights]);
+  }, [user?.baby_id, user?.baby?.id, loadData, loadSleepStatus, loadOptimalStats, loadInsights, loadAISummary, loadSchedulePrediction]);
 
   const handleMetricClick = (metric: MetricType) => {
     if (openMetric === metric) {
@@ -490,23 +522,126 @@ const HomeDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* Nappi Recommends */}
-          <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-lg">
-            <h3 className="text-lg font-semibold text-[#000] mb-3 font-kodchasan">Nappi Recommends</h3>
-            <p className="text-base leading-snug text-gray-700 m-0">
-              {insights?.insights ? (
-                insights.insights
-              ) : sleepSummary && sleepSummary.sleep_quality_score < 80 ? (
-                <>
-                  {babyName}&apos;s last nap quality was <strong>{sleepSummary.sleep_quality_score}/100</strong>. Try adjusting the room temperature or reducing
-                  noise levels for better sleep.
-                </>
-              ) : (
-                <>
-                  Keep tracking {babyName}&apos;s sleep to receive personalized AI-powered recommendations!
-                </>
+          {/* AI-Powered Insights Section */}
+          <div className="bg-gradient-to-br from-[#E8F7F6] to-[#D5F0EF] rounded-3xl p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-[#2F8F8B] font-kodchasan flex items-center gap-2">
+                <span className="text-xl">🤖</span>
+                Nappi AI Insights
+              </h3>
+              {aiSummaryLoading && (
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#4ECDC4]"></div>
               )}
-            </p>
+            </div>
+
+            {aiSummary ? (
+              <div className="space-y-4">
+                {/* Sleep Quality Summary */}
+                <div className="bg-white/80 rounded-2xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-lg">😴</span>
+                    <span className="font-medium text-gray-800">Sleep Summary</span>
+                  </div>
+                  <p className="text-sm text-gray-700">{aiSummary.sleep_summary.message}</p>
+                  {aiSummary.weekly_trend && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        aiSummary.weekly_trend === 'improving' 
+                          ? 'bg-green-100 text-green-700' 
+                          : aiSummary.weekly_trend === 'declining'
+                          ? 'bg-orange-100 text-orange-700'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {aiSummary.weekly_trend === 'improving' ? '↑ Improving' : 
+                         aiSummary.weekly_trend === 'declining' ? '↓ Needs attention' : '→ Stable'}
+                      </span>
+                      {aiSummary.trend_message && (
+                        <span className="text-xs text-gray-500">{aiSummary.trend_message}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Environment Status */}
+                <div className={`rounded-2xl p-4 ${
+                  aiSummary.environment.status === 'optimal' 
+                    ? 'bg-green-50' 
+                    : aiSummary.environment.status === 'needs_attention'
+                    ? 'bg-orange-50'
+                    : 'bg-white/80'
+                }`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-lg">🏠</span>
+                    <span className="font-medium text-gray-800">Room Environment</span>
+                    {aiSummary.environment.status === 'optimal' && (
+                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Optimal</span>
+                    )}
+                    {aiSummary.environment.status === 'needs_attention' && (
+                      <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">Check</span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-700">{aiSummary.environment.message}</p>
+                </div>
+
+                {/* Next Sleep Prediction */}
+                {aiSummary.next_sleep_prediction && (
+                  <div className="bg-white/80 rounded-2xl p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">⏰</span>
+                      <span className="font-medium text-gray-800">Next Sleep</span>
+                    </div>
+                    <p className="text-sm text-gray-700">
+                      {aiSummary.next_sleep_prediction}
+                      {aiSummary.next_sleep_time && (
+                        <span className="font-semibold"> ({aiSummary.next_sleep_time})</span>
+                      )}
+                    </p>
+                    {schedulePrediction?.suggestions && schedulePrediction.suggestions.length > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">{schedulePrediction.suggestions[0]}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Today's Tip */}
+                <div className="bg-[#FEF3C7] rounded-2xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-lg">💡</span>
+                    <span className="font-medium text-[#92400E]">Today's Tip</span>
+                  </div>
+                  <p className="text-sm text-[#78350F]">{aiSummary.todays_tip}</p>
+                </div>
+
+                {/* Quick Insights */}
+                {aiSummary.quick_insights && aiSummary.quick_insights.length > 0 && (
+                  <div className="space-y-2">
+                    {aiSummary.quick_insights.map((insight, index) => (
+                      <div key={index} className="flex items-start gap-2 text-sm text-gray-600">
+                        <span className="text-[#4ECDC4] mt-0.5">•</span>
+                        <span>{insight}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Fallback to simple insights */}
+                <p className="text-sm text-gray-700 leading-relaxed">
+                  {insights?.insights ? (
+                    insights.insights
+                  ) : sleepSummary && sleepSummary.sleep_quality_score < 80 ? (
+                    <>
+                      {babyName}&apos;s last nap quality was <strong>{sleepSummary.sleep_quality_score}/100</strong>. Try adjusting the room temperature or reducing
+                      noise levels for better sleep.
+                    </>
+                  ) : (
+                    <>
+                      Keep tracking {babyName}&apos;s sleep to receive personalized AI-powered recommendations!
+                    </>
+                  )}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </section>

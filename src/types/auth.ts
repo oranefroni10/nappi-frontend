@@ -3,6 +3,7 @@ export interface Baby {
   first_name: string;
   last_name: string;
   birthdate: string;
+  notes?: string;  // Parent notes: allergies, conditions, health info
 }
 
 export interface AuthUser {
@@ -54,6 +55,7 @@ export interface RegisterBabyRequest {
   first_name: string;
   birthdate: string;
   gender?: string;
+  notes?: string;  // Parent notes: allergies, conditions, health info
 }
 
 export interface changePasswordRequest {
@@ -64,4 +66,29 @@ export interface changePasswordRequest {
 
 export interface changePasswordResponse {
   password_changed: boolean;
+}
+
+// Baby notes (multi-note system)
+export interface BabyNote {
+  id: number;
+  baby_id: number;
+  title: string;
+  content: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface NotesListResponse {
+  baby_id: number;
+  notes: BabyNote[];
+}
+
+export interface NoteCreateRequest {
+  title: string;
+  content: string;
+}
+
+export interface NoteUpdateRequest {
+  title: string;
+  content: string;
 }
