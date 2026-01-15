@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { AuthUser } from '../types/auth';
-import { authApi } from '../api/auth';
+import { authApi, babiesApi } from '../api/auth';
 import { useLayoutContext } from '../components/LayoutContext';
 import { fetchVapidKey, fetchPushStatus, subscribeToPush, unsubscribeFromPush } from '../api/alerts';
 
@@ -48,13 +48,71 @@ const UserProfile: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  
+  // Baby notes state
+  const [notes, setNotes] = useState('');
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('nappi_user');
     if (stored) {
-      setUser(JSON.parse(stored));
+      const userData = JSON.parse(stored);
+      setUser(userData);
+      // Initialize notes from stored user data
+      if (userData.baby?.notes) {
+        setNotes(userData.baby.notes);
+      }
     }
   }, []);
+
+  // Fetch notes from server when user loads
+  const fetchNotes = useCallback(async () => {
+    if (!user?.user_id || !user?.baby?.id) return;
+    
+    try {
+      const { data } = await babiesApi.getNotes(user.baby.id, user.user_id);
+      setNotes(data.notes || '');
+    } catch (err) {
+      console.error('Failed to fetch notes:', err);
+    }
+  }, [user?.user_id, user?.baby?.id]);
+
+  useEffect(() => {
+    if (user?.baby?.id) {
+      fetchNotes();
+    }
+  }, [user?.baby?.id, fetchNotes]);
+
+  // Save baby notes
+  const handleSaveNotes = async () => {
+    if (!user?.user_id || !user?.baby?.id) return;
+    
+    setNotesLoading(true);
+    setNotesSaved(false);
+    
+    try {
+      await babiesApi.updateNotes(user.baby.id, user.user_id, notes);
+      setNotesSaved(true);
+      
+      // Update local storage with new notes
+      const stored = localStorage.getItem('nappi_user');
+      if (stored) {
+        const userData = JSON.parse(stored);
+        if (userData.baby) {
+          userData.baby.notes = notes;
+          localStorage.setItem('nappi_user', JSON.stringify(userData));
+        }
+      }
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setNotesSaved(false), 3000);
+    } catch (err) {
+      console.error('Failed to save notes:', err);
+    } finally {
+      setNotesLoading(false);
+    }
+  };
 
   // Check push notification status when user loads
   const checkPushStatus = useCallback(async () => {
@@ -293,6 +351,39 @@ const UserProfile: React.FC = () => {
                 <ProfileRow label="Name" value={`${user.baby.first_name} ${user.baby.last_name}`} />
                 <ProfileRow label="Age" value={babyAge || 'Unknown'} />
                 <ProfileRow label="Birthdate" value={new Date(user.baby.birthdate).toLocaleDateString()} />
+              </div>
+              
+              {/* Notes Section */}
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <label className="block text-gray-600 text-sm mb-1">Notes about your baby</label>
+                <p className="text-xs text-gray-400 mb-2">Allergies, health conditions, or anything the AI should know</p>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="E.g., lactose intolerant, eczema, prefers white noise..."
+                  maxLength={2000}
+                  rows={3}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm outline-none transition-all duration-200 focus:border-[#4ECDC4] focus:ring-2 focus:ring-[#4ECDC4]/20 focus:bg-white resize-none"
+                />
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-xs text-gray-400">{notes.length}/2000</span>
+                  <div className="flex items-center gap-2">
+                    {notesSaved && (
+                      <span className="text-xs text-green-500">Saved!</span>
+                    )}
+                    <button
+                      onClick={handleSaveNotes}
+                      disabled={notesLoading}
+                      className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                        notesLoading
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-[#4ECDC4] hover:bg-[#3dbdb5] text-white shadow-sm hover:shadow-md active:scale-[0.98]'
+                      }`}
+                    >
+                      {notesLoading ? 'Saving...' : 'Save Notes'}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}

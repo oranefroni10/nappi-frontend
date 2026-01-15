@@ -23,3 +23,16 @@ export const authApi = {
     api.post<changePasswordResponse>('/auth/change-password', data),
 };
 
+// Baby-specific API endpoints
+export const babiesApi = {
+  getNotes: (babyId: number, userId: number) =>
+    api.get<{ baby_id: number; notes: string | null }>(`/babies/${babyId}/notes`, {
+      params: { user_id: userId },
+    }),
+
+  updateNotes: (babyId: number, userId: number, notes: string) =>
+    api.put<{ success: boolean; notes: string }>(`/babies/${babyId}/notes`, { notes }, {
+      params: { user_id: userId },
+    }),
+};
+

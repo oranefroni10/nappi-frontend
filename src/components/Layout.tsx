@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useLayoutContext } from './LayoutContext';
+import ChatFloatingButton from './ChatFloatingButton';
 import type { AuthUser } from '../types/auth';
 
 interface LayoutProps {
@@ -82,6 +83,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <div className="w-full h-full md:h-auto md:max-w-2xl lg:max-w-3xl relative flex flex-col min-h-screen md:min-h-[600px] isolate">
         {children}
       </div>
+      
+      {/* Floating Chat Button */}
+      <ChatFloatingButton />
     </div>
   );
 };

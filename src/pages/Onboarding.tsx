@@ -14,6 +14,7 @@ const Onboarding: React.FC = () => {
   const [babyName, setBabyName] = useState('');
   const [birthdate, setBirthdate] = useState('');
   const [gender, setGender] = useState('');
+  const [notes, setNotes] = useState('');
 
   useEffect(() => {
     const stored = localStorage.getItem('nappi_user');
@@ -37,6 +38,7 @@ const Onboarding: React.FC = () => {
         first_name: babyName,
         birthdate,
         gender: gender || undefined,
+        notes: notes || undefined,
       });
 
       localStorage.setItem('nappi_user', JSON.stringify({
@@ -157,6 +159,23 @@ const Onboarding: React.FC = () => {
                 <option value="male">Boy 👦</option>
                 <option value="female">Girl 👧</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block mb-2 text-sm font-semibold text-[#000]">
+                Notes <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <p className="text-xs text-gray-400 mb-2">
+                Allergies, health conditions, or anything the AI should know
+              </p>
+              <textarea
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="E.g., lactose intolerant, eczema, prefers white noise..."
+                maxLength={2000}
+                rows={3}
+                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-base outline-none transition-all duration-200 focus:border-[#7DD3C8] focus:shadow-[0_0_0_3px_rgba(125,211,200,0.2)] focus:bg-white resize-none"
+              />
             </div>
 
             <button
