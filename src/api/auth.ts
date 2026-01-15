@@ -5,6 +5,8 @@ import type {
   SignInRequest,
   SignInResponse,
   RegisterBabyRequest,
+  changePasswordRequest,
+  changePasswordResponse,
 } from '../types/auth';
 
 export const authApi = {
@@ -16,5 +18,8 @@ export const authApi = {
 
   registerBaby: (data: RegisterBabyRequest) =>
     api.post<SignInResponse>('/auth/register-baby', data),
+
+  changePassword: (data: changePasswordRequest) =>
+    api.post<changePasswordResponse>('/auth/change-password', data),
 };
 

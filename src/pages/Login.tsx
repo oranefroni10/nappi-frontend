@@ -22,6 +22,8 @@ const Login: React.FC = () => {
         username: data.username,
         baby_id: data.baby_id,
         baby: data.baby,
+        first_name: data.first_name,
+        last_name: data.last_name,
       }));
 
       if (data.baby_id) {
@@ -37,201 +39,141 @@ const Login: React.FC = () => {
     }
   };
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    padding: '1rem',
-    borderRadius: '12px',
-    border: '2px solid #E5E7EB',
-    fontSize: '1rem',
-    boxSizing: 'border-box',
-    outline: 'none',
-    transition: 'border-color 0.2s, box-shadow 0.2s',
-    background: '#FAFAFA'
-  };
-
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '2rem 1.5rem',
-      background: 'linear-gradient(160deg, #FFE4E1 0%, #E8F4FD 50%, #E6F7FF 100%)'
-    }}>
-      {/* Logo */}
-      <div 
-        onClick={() => navigate('/welcome')}
-        style={{ 
-          textAlign: 'center', 
-          marginBottom: '2rem',
-          cursor: 'pointer'
-        }}
-      >
-        <div style={{
-          width: '70px',
-          height: '70px',
-          background: 'linear-gradient(135deg, #B4E7E5 0%, #7DD3C8 100%)',
-          borderRadius: '20px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          margin: '0 auto 0.75rem',
-          boxShadow: '0 8px 24px rgba(125, 211, 200, 0.3)'
-        }}>
-          <span style={{ fontSize: '2rem' }}>👶</span>
-        </div>
-        <h1 style={{ margin: 0, fontSize: '1.75rem', color: '#1F2937', fontWeight: '700' }}>
-          nappi
-        </h1>
+    <div className="min-h-screen w-screen flex items-center justify-center bg-gradient-to-b from-[#fee2d6] via-[#FAFBFC] to-[#e2f9fb] p-0 md:p-8 overflow-hidden relative">
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {/* Top left cloud */}
+        <img
+          src="/Vector1.svg"
+          alt=""
+          className="absolute top-[10%] left-[-15%] w-[200px] h-[100px] opacity-30"
+        />
+        
+        {/* Top right cloud */}
+        <img
+          src="/Vector.svg"
+          alt=""
+          className="absolute top-[5%] right-[5%] w-[120px] h-[60px] opacity-40"
+        />
+        
+        {/* Middle left cloud */}
+        <img
+          src="/Vector1.svg"
+          alt=""
+          className="absolute top-[60%] left-[25%] w-[250px] h-[150px]"
+        />
+        
+        {/* Bottom right cloud */}
+        <img
+          src="/Vector.svg"
+          alt=""
+          className="absolute top-[50%] right-[15%] w-[150px] h-[70px] opacity-50"
+        />
       </div>
-
-      {/* Card */}
-      <div style={{
-        background: 'white',
-        padding: '2rem',
-        borderRadius: '24px',
-        boxShadow: '0 10px 40px rgba(0,0,0,0.08)',
-        width: '100%',
-        maxWidth: '400px'
-      }}>
-        <h2 style={{ 
-          margin: '0 0 0.5rem 0', 
-          textAlign: 'center', 
-          color: '#1F2937',
-          fontSize: '1.5rem',
-          fontWeight: '600'
-        }}>
-          Welcome back!
-        </h2>
-        <p style={{
-          margin: '0 0 1.5rem 0',
-          textAlign: 'center',
-          color: '#6B7280',
-          fontSize: '0.9rem'
-        }}>
-          Sign in to continue monitoring
-        </p>
-
-        {error && (
-          <div style={{
-            background: '#FEF2F2',
-            color: '#DC2626',
-            padding: '0.875rem',
-            borderRadius: '12px',
-            marginBottom: '1.25rem',
-            textAlign: 'center',
-            fontSize: '0.9rem',
-            fontWeight: '500'
-          }}>
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <div>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '0.5rem', 
-              fontWeight: '500', 
-              color: '#374151',
-              fontSize: '0.9rem'
-            }}>
-              Username
-            </label>
-            <input
-              type="text"
-              required
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              placeholder="Enter your username"
-              style={inputStyle}
-              onFocus={(e) => {
-                e.target.style.borderColor = '#FFD166';
-                e.target.style.boxShadow = '0 0 0 3px rgba(255, 209, 102, 0.2)';
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = '#E5E7EB';
-                e.target.style.boxShadow = 'none';
-              }}
-            />
-          </div>
-
-          <div>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '0.5rem', 
-              fontWeight: '500', 
-              color: '#374151',
-              fontSize: '0.9rem'
-            }}>
-              Password
-            </label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="Enter your password"
-              style={inputStyle}
-              onFocus={(e) => {
-                e.target.style.borderColor = '#FFD166';
-                e.target.style.boxShadow = '0 0 0 3px rgba(255, 209, 102, 0.2)';
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = '#E5E7EB';
-                e.target.style.boxShadow = 'none';
-              }}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              background: loading 
-                ? '#E5E7EB' 
-                : 'linear-gradient(135deg, #FFD166 0%, #FFB84D 100%)',
-              border: 'none',
-              borderRadius: '12px',
-              padding: '1rem',
-              fontSize: '1rem',
-              fontWeight: '600',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              marginTop: '0.5rem',
-              color: loading ? '#9CA3AF' : '#1F2937',
-              boxShadow: loading ? 'none' : '0 4px 12px rgba(255, 209, 102, 0.3)',
-              transition: 'all 0.2s'
-            }}
-          >
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
-
-        <div style={{ 
-          textAlign: 'center', 
-          marginTop: '1.75rem',
-          paddingTop: '1.5rem',
-          borderTop: '1px solid #F3F4F6'
-        }}>
-          <p style={{ color: '#6B7280', margin: 0, fontSize: '0.9rem' }}>
-            Don&apos;t have an account?{' '}
-            <button
-              onClick={() => navigate('/signup')}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#3B82F6',
-                cursor: 'pointer',
-                fontWeight: '600',
-                fontSize: '0.9rem',
-                padding: 0
-              }}
-            >
-              Sign up
-            </button>
-          </p>
+      <div className="w-full h-full md:h-auto md:max-w-md lg:max-w-lg relative flex flex-col items-center justify-center min-h-screen md:min-h-[600px] md:max-h-[90vh] isolate px-6 py-8">
+        
+        {/* Logo - clickable to go back to welcome */}
+        <div 
+          className="text-center mb-8"
+          style={{
+            animation: 'fadeIn 0.8s ease-in backwards'
+          }}
+        >
+          <img
+            src="/logo.svg"
+            alt="Nappi logo"
+            className="w-32 h-auto mx-auto"
+          />
         </div>
+
+        {/* Login Card */}
+        <div 
+          className="w-full max-w-[380px] bg-white/80 backdrop-blur-sm rounded-[24px] shadow-lg p-6 md:p-8"
+          style={{
+            animation: 'fadeIn 0.8s ease-in backwards'
+          }}
+        >
+          <h2 className="text-2xl font-semibold font-[Kodchasan] text-[#000] text-center mb-2">
+            Welcome back!
+          </h2>
+          <p className="text-sm text-gray-600 text-center mb-6">
+            Please sign in to continue
+          </p>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl mb-5 text-center text-sm font-medium">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            <div>
+              <label className="block mb-2 text-sm font-medium text-gray-700">
+                Username
+              </label>
+              <input
+                type="text"
+                required
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                placeholder="Enter your username"
+                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-base outline-none transition-all duration-200 focus:border-[#ffc857] focus:shadow-[0_0_0_3px_rgba(255,200,87,0.2)] focus:bg-white"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 text-sm font-medium text-gray-700">
+                Password
+              </label>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-base outline-none transition-all duration-200 focus:border-[#ffc857] focus:shadow-[0_0_0_3px_rgba(255,200,87,0.2)] focus:bg-white"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className={`w-full py-3.5 rounded-xl text-base font-semibold mt-2 transition-all duration-200 ${
+                loading
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-[#ffc857] hover:bg-[#ffb83d] text-[#000] shadow-md hover:shadow-lg active:scale-[0.98]'
+              }`}
+            >
+              {loading ? 'Signing in...' : 'Sign In'}
+            </button>
+          </form>
+
+          <div className="text-center mt-6 pt-6 border-t border-gray-200">
+            <p className="text-gray-600 text-sm">
+              Don&apos;t have an account?{' '}
+              <button
+                onClick={() => navigate('/signup')}
+                className="text-[#4ECDC4] hover:text-[#3db8b0] font-semibold transition-colors"
+              >
+                Sign up
+              </button>
+            </p>
+          </div>
+        </div>
+
+        {/* CSS animations */}
+        <style>{`
+          @keyframes fadeIn {
+            from {
+              opacity: 0;
+              transform: translateY(-10px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+        `}</style>
       </div>
     </div>
   );

@@ -1,13 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { AuthUser } from '../types/auth';
+import { authApi } from '../api/auth';
+import { useLayoutContext } from '../components/LayoutContext';
+import { fetchVapidKey, fetchPushStatus, subscribeToPush, unsubscribeFromPush } from '../api/alerts';
+
+// Helper function to convert VAPID key to Uint8Array
+const urlBase64ToUint8Array = (base64String: string): Uint8Array => {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+};
 
 // Helper function to calculate age from birthdate
 const calculateAge = (birthdate: string): string => {
   const birth = new Date(birthdate);
   const today = new Date();
   const months = (today.getFullYear() - birth.getFullYear()) * 12 + (today.getMonth() - birth.getMonth());
-  
+
   if (months < 1) {
     const days = Math.floor((today.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24));
     return `${days} days`;
@@ -20,9 +34,20 @@ const calculateAge = (birthdate: string): string => {
 };
 
 const UserProfile: React.FC = () => {
-  const navigate = useNavigate();
+  const { setMenuOpen } = useLayoutContext();
+
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [pushConfigured, setPushConfigured] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem('nappi_user');
@@ -31,233 +56,305 @@ const UserProfile: React.FC = () => {
     }
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('nappi_user');
-    navigate('/login');
+  // Check push notification status when user loads
+  const checkPushStatus = useCallback(async () => {
+    if (!user?.user_id) return;
+    
+    try {
+      const [vapidResponse, statusResponse] = await Promise.all([
+        fetchVapidKey(),
+        fetchPushStatus(user.user_id),
+      ]);
+      
+      setPushConfigured(vapidResponse.configured);
+      setNotificationsEnabled(statusResponse.subscribed);
+    } catch (err) {
+      console.error('Failed to check push status:', err);
+    }
+  }, [user?.user_id]);
+
+  useEffect(() => {
+    if (user?.user_id) {
+      checkPushStatus();
+    }
+  }, [user?.user_id, checkPushStatus]);
+
+  // Handle push notification toggle
+  const handlePushToggle = async (enabled: boolean) => {
+    if (!user?.user_id || pushLoading) return;
+    
+    setPushLoading(true);
+    setPushError(null);
+
+    try {
+      if (enabled) {
+        // Request permission and subscribe
+        const permission = await Notification.requestPermission();
+        
+        if (permission !== 'granted') {
+          setPushError('Please allow notifications in your browser settings');
+          setPushLoading(false);
+          return;
+        }
+
+        // Get VAPID key
+        const vapidResponse = await fetchVapidKey();
+        if (!vapidResponse.public_key) {
+          setPushError('Push notifications not configured on server');
+          setPushLoading(false);
+          return;
+        }
+
+        // Register service worker and get subscription
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidResponse.public_key),
+        });
+
+        // Send subscription to backend
+        const subscriptionJson = subscription.toJSON();
+        await subscribeToPush(user.user_id, {
+          endpoint: subscriptionJson.endpoint!,
+          keys: {
+            p256dh: subscriptionJson.keys!.p256dh,
+            auth: subscriptionJson.keys!.auth,
+          },
+        });
+
+        setNotificationsEnabled(true);
+      } else {
+        // Unsubscribe
+        await unsubscribeFromPush(user.user_id);
+        setNotificationsEnabled(false);
+      }
+    } catch (err) {
+      console.error('Failed to toggle push notifications:', err);
+      setPushError('Failed to update notification settings');
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    // 1. Basic Validation
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setError('Please fill in all fields.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('New passwords do not match.');
+      return;
+    }
+
+    if (!user) return;
+    setError(null);
+    setSuccess(null);
+    setLoading(true);
+
+    try {
+      // 3. API Call
+      const { data } = await authApi.changePassword({
+        user_id: user.user_id,
+        old_password: currentPassword,
+        new_password: newPassword,
+      });
+
+      // 4. Handle Success
+      if (data.password_changed) {
+        setSuccess('Password updated successfully!');
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+
+        setTimeout(() => {
+          setIsChangePasswordOpen(false);
+          setSuccess(null);
+        }, 2000);
+      } else {
+        setError('Failed to update password.');
+      }
+    } catch (err: any) {
+      const detail = err.response?.data?.detail;
+
+      if (typeof detail === 'string') {
+        setError(detail);
+      } else if (Array.isArray(detail)) {
+        const firstError = detail[0];
+        const fieldName = firstError.loc?.[1] || 'Field';
+        setError(`${fieldName}: ${firstError.msg}`);
+      } else {
+        setError('Failed to update password. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const babyAge = user?.baby?.birthdate ? calculateAge(user.baby.birthdate) : null;
 
   return (
-    <div style={{ padding: '0.5rem' }}>
-      {/* Profile Header */}
-      <div style={{
-        background: 'linear-gradient(135deg, #667EEA 0%, #764BA2 100%)',
-        borderRadius: '20px',
-        padding: '2rem 1.5rem',
-        marginBottom: '1.5rem',
-        color: 'white',
-        textAlign: 'center'
-      }}>
-        <div style={{
-          width: '80px',
-          height: '80px',
-          borderRadius: '50%',
-          background: 'rgba(255,255,255,0.2)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          margin: '0 auto 1rem',
-          fontSize: '2.5rem',
-          border: '3px solid rgba(255,255,255,0.3)'
-        }}>
-          👤
-        </div>
-        <h2 style={{ margin: '0 0 0.25rem 0', fontSize: '1.5rem', fontWeight: '600' }}>
-          {user?.username || 'User'}
-        </h2>
-        <p style={{ margin: 0, opacity: 0.9, fontSize: '0.9rem' }}>
-          Parent Account
-        </p>
-      </div>
-
-      {/* Baby Info Card */}
-      {user?.baby && (
-        <div style={{
-          background: 'white',
-          borderRadius: '20px',
-          padding: '1.5rem',
-          marginBottom: '1rem',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
-        }}>
-          <h3 style={{ 
-            margin: '0 0 1rem 0', 
-            fontSize: '1.1rem', 
-            color: '#1F2937',
-            fontWeight: '600',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
-            <span>👶</span> Baby Information
-          </h3>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <ProfileRow label="Name" value={`${user.baby.first_name} ${user.baby.last_name}`} />
-            <ProfileRow label="Age" value={babyAge || 'Unknown'} />
-            <ProfileRow label="Birthdate" value={new Date(user.baby.birthdate).toLocaleDateString()} />
+    <>
+      {/* Header Section */}
+      <section className="pt-6 px-5 pb-6 relative z-10">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2">
+            <div className="cursor-pointer rounded-full hover:bg-gray-50 transition-colors" onClick={() => setMenuOpen(true)}>
+              <img className="[border:none] p-0 bg-[transparent] w-12 h-[37px] relative" alt="Menu" src="/hugeicons-menu-02.svg" />
+            </div>
           </div>
-        </div>
-      )}
 
-      {/* Settings Card */}
-      <div style={{
-        background: 'white',
-        borderRadius: '20px',
-        padding: '1.5rem',
-        marginBottom: '1rem',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
-      }}>
-        <h3 style={{ 
-          margin: '0 0 1rem 0', 
-          fontSize: '1.1rem', 
-          color: '#1F2937',
-          fontWeight: '600',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem'
-        }}>
-          <span>⚙️</span> Settings
-        </h3>
-        
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '0.75rem 0',
-          borderBottom: '1px solid #F3F4F6'
-        }}>
-          <div>
-            <p style={{ margin: 0, fontWeight: '500', color: '#374151' }}>Push Notifications</p>
-            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8rem', color: '#9CA3AF' }}>
-              Get alerts when baby wakes up
-            </p>
+          <div className="text-center">
+            <h1 className="text-2xl font-semibold font-[Kodchasan] text-[#000] m-0">Profile</h1>
           </div>
-          <ToggleSwitch 
-            enabled={notificationsEnabled} 
-            onChange={setNotificationsEnabled} 
-          />
-        </div>
 
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '0.75rem 0'
-        }}>
-          <div>
-            <p style={{ margin: 0, fontWeight: '500', color: '#374151' }}>Dark Mode</p>
-            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.8rem', color: '#9CA3AF' }}>
-              Coming soon
-            </p>
+          <img src="/logo.svg" alt="Nappi" className="w-12 h-12" />
+        </div>
+      </section>
+
+      {/* Main Content */}
+      <section className="px-5 pb-8 relative z-10">
+        <div className="flex flex-col gap-5">
+          {/* User Info Card with Change Password */}
+          {user && (
+            <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-lg">
+              <h3 className="text-lg font-semibold text-[#000] mb-4 font-kodchasan flex items-center gap-2">Account Information</h3>
+
+              <div className="flex flex-col gap-3">
+                <ProfileRow label="Full Name" value={`${user.first_name} ${user.last_name}`} />
+                <ProfileRow label="User Name" value={user.username || 'Unknown'} />
+
+                {/* Change Password Toggle Section */}
+                <div className="border-gray-100 mt-1 pt-1">
+                  <button onClick={() => setIsChangePasswordOpen(!isChangePasswordOpen)} className="w-full flex justify-between items-center py-2 text-left rounded-lg">
+                    <span className="text-gray-600 text-sm hover:text-gray-900 transition-colors">Change Password</span>
+                    <span className={`text-gray-400 text-xs transition-transform duration-300 ${isChangePasswordOpen ? 'rotate-180' : ''}`}>▼</span>
+                  </button>
+
+                  {/* Expandable Password Form */}
+                  {isChangePasswordOpen && (
+                    <div className="flex flex-col gap-3 mt-2 pl-1 pr-1 pb-1" style={{ animation: 'slideDown 0.3s ease-out' }}>
+                      {/* Status Messages */}
+                      {error && <div className="text-red-500 text-xs px-1">{error}</div>}
+                      {success && <div className="text-green-500 text-xs px-1">{success}</div>}
+
+                      <input
+                        type="password"
+                        placeholder="Current Password"
+                        className="w-full px-4 py-2.5 rounded-xl text-sm border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#4ECDC4]/50 transition-all placeholder:text-gray-400"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                      />
+                      <input
+                        type="password"
+                        placeholder="New Password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-xl text-sm border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#4ECDC4]/50 transition-all placeholder:text-gray-400"
+                      />
+                      <input
+                        type="password"
+                        placeholder="Confirm New Password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-xl text-sm border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#4ECDC4]/50 transition-all placeholder:text-gray-400"
+                      />
+
+                      <button
+                        onClick={handleUpdatePassword}
+                        disabled={loading}
+                        className={`w-full mt-2 text-white font-medium py-2.5 rounded-xl shadow-sm transition-all ${
+                          loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#4ECDC4] hover:bg-[#3dbdb5] hover:shadow-md active:scale-[0.98]'
+                        }`}
+                      >
+                        {loading ? 'Updating...' : 'Update Password'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <style>{`
+                @keyframes slideDown {
+                  from { opacity: 0; transform: translateY(-10px); }
+                  to { opacity: 1; transform: translateY(0); }
+                }
+              `}</style>
+            </div>
+          )}
+
+          {/* Baby Info Card */}
+          {user?.baby && (
+            <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-lg">
+              <h3 className="text-lg font-semibold text-[#000] mb-4 font-kodchasan flex items-center gap-2">Baby Information</h3>
+
+              <div className="flex flex-col gap-3">
+                <ProfileRow label="Name" value={`${user.baby.first_name} ${user.baby.last_name}`} />
+                <ProfileRow label="Age" value={babyAge || 'Unknown'} />
+                <ProfileRow label="Birthdate" value={new Date(user.baby.birthdate).toLocaleDateString()} />
+              </div>
+            </div>
+          )}
+
+          {/* Settings Card */}
+          <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-lg">
+            <h3 className="text-lg font-semibold text-[#000] mb-4 font-kodchasan flex items-center gap-2">Settings</h3>
+
+            <div className="flex justify-between items-center py-3 border-b border-gray-100">
+              <div>
+                <p className="m-0 font-medium text-gray-700">Push Notifications</p>
+                <p className="m-0 mt-1 text-xs text-gray-400">
+                  {!pushConfigured 
+                    ? 'Not configured on server'
+                    : notificationsEnabled 
+                    ? 'Enabled - get alerts when baby wakes up'
+                    : 'Disabled - tap to enable alerts'}
+                </p>
+                {pushError && (
+                  <p className="m-0 mt-1 text-xs text-red-500">{pushError}</p>
+                )}
+              </div>
+              <ToggleSwitch 
+                enabled={notificationsEnabled} 
+                onChange={handlePushToggle}
+                disabled={pushLoading || !pushConfigured}
+              />
+            </div>
+            
+            {pushLoading && (
+              <p className="text-xs text-gray-400 mt-2">Updating notification settings...</p>
+            )}
           </div>
-          <ToggleSwitch enabled={false} onChange={() => {}} disabled />
+
+          {/* App Info */}
+          <p className="text-center text-gray-400 text-xs mt-4">Nappi v1.0.0 • Made with 💛 for better baby sleep</p>
         </div>
-      </div>
-
-      {/* Account Actions */}
-      <div style={{
-        background: 'white',
-        borderRadius: '20px',
-        padding: '1.5rem',
-        marginBottom: '1rem',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
-      }}>
-        <h3 style={{ 
-          margin: '0 0 1rem 0', 
-          fontSize: '1.1rem', 
-          color: '#1F2937',
-          fontWeight: '600',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem'
-        }}>
-          <span>🔐</span> Account
-        </h3>
-
-        <button
-          onClick={handleLogout}
-          style={{
-            width: '100%',
-            padding: '1rem',
-            background: 'linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%)',
-            border: 'none',
-            borderRadius: '12px',
-            color: '#DC2626',
-            fontSize: '1rem',
-            fontWeight: '600',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.5rem',
-            transition: 'transform 0.2s, box-shadow 0.2s'
-          }}
-          onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.98)'}
-          onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
-          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-        >
-          <span>🚪</span> Log Out
-        </button>
-      </div>
-
-      {/* App Info */}
-      <p style={{ 
-        textAlign: 'center', 
-        color: '#9CA3AF', 
-        fontSize: '0.75rem',
-        marginTop: '2rem'
-      }}>
-        Nappi v1.0.0 • Made with 💛 for better baby sleep
-      </p>
-    </div>
+      </section>
+    </>
   );
 };
 
 const ProfileRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div style={{
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '0.5rem 0',
-    borderBottom: '1px solid #F3F4F6'
-  }}>
-    <span style={{ color: '#6B7280', fontSize: '0.95rem' }}>{label}</span>
-    <span style={{ color: '#1F2937', fontWeight: '500', fontSize: '0.95rem' }}>{value}</span>
+  <div className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
+    <span className="text-gray-600 text-sm">{label}</span>
+    <span className="text-[#000] font-medium text-sm">{value}</span>
   </div>
 );
 
-const ToggleSwitch: React.FC<{ 
-  enabled: boolean; 
+const ToggleSwitch: React.FC<{
+  enabled: boolean;
   onChange: (val: boolean) => void;
   disabled?: boolean;
 }> = ({ enabled, onChange, disabled }) => (
   <button
     onClick={() => !disabled && onChange(!enabled)}
     disabled={disabled}
-    style={{
-      width: '50px',
-      height: '28px',
-      borderRadius: '14px',
-      border: 'none',
-      background: enabled ? '#10B981' : '#E5E7EB',
-      cursor: disabled ? 'not-allowed' : 'pointer',
-      position: 'relative',
-      transition: 'background 0.2s',
-      opacity: disabled ? 0.5 : 1
-    }}
+    className={`w-[50px] h-7 rounded-full border-none relative transition-all ${enabled ? 'bg-green-500' : 'bg-gray-300'} ${
+      disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+    }`}
   >
-    <div style={{
-      width: '22px',
-      height: '22px',
-      borderRadius: '50%',
-      background: 'white',
-      position: 'absolute',
-      top: '3px',
-      left: enabled ? '25px' : '3px',
-      transition: 'left 0.2s',
-      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-    }} />
+    <div className={`w-[22px] h-[22px] rounded-full bg-white absolute top-[3px] transition-all shadow-md ${enabled ? 'left-[25px]' : 'left-[3px]'}`} />
   </button>
 );
 
