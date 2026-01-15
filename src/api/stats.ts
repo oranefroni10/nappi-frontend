@@ -4,6 +4,7 @@ import type {
   SleepPatternsResponse,
   DailySleepResponse,
   InsightsResponse,
+  OptimalStatsResponse,
 } from '../types/metrics';
 
 /**
@@ -78,6 +79,19 @@ export async function fetchInsights(
 
   const res = await api.get<InsightsResponse>('/stats/insights', {
     params,
+  });
+  return res.data;
+}
+
+/**
+ * Fetch optimal sleep conditions for a baby.
+ * Returns the calculated optimal temperature, humidity, and noise levels.
+ */
+export async function fetchOptimalStats(
+  babyId: number
+): Promise<OptimalStatsResponse> {
+  const res = await api.get<OptimalStatsResponse>('/stats/optimal', {
+    params: { baby_id: babyId },
   });
   return res.data;
 }

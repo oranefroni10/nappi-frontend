@@ -1,7 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { AuthUser } from '../types/auth';
 import { authApi } from '../api/auth';
 import { useLayoutContext } from '../components/LayoutContext';
+import { fetchVapidKey, fetchPushStatus, subscribeToPush, unsubscribeFromPush } from '../api/alerts';
+
+// Helper function to convert VAPID key to Uint8Array
+const urlBase64ToUint8Array = (base64String: string): Uint8Array => {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+};
 
 // Helper function to calculate age from birthdate
 const calculateAge = (birthdate: string): string => {
@@ -24,7 +37,10 @@ const UserProfile: React.FC = () => {
   const { setMenuOpen } = useLayoutContext();
 
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [pushConfigured, setPushConfigured] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -39,6 +55,86 @@ const UserProfile: React.FC = () => {
       setUser(JSON.parse(stored));
     }
   }, []);
+
+  // Check push notification status when user loads
+  const checkPushStatus = useCallback(async () => {
+    if (!user?.user_id) return;
+    
+    try {
+      const [vapidResponse, statusResponse] = await Promise.all([
+        fetchVapidKey(),
+        fetchPushStatus(user.user_id),
+      ]);
+      
+      setPushConfigured(vapidResponse.configured);
+      setNotificationsEnabled(statusResponse.subscribed);
+    } catch (err) {
+      console.error('Failed to check push status:', err);
+    }
+  }, [user?.user_id]);
+
+  useEffect(() => {
+    if (user?.user_id) {
+      checkPushStatus();
+    }
+  }, [user?.user_id, checkPushStatus]);
+
+  // Handle push notification toggle
+  const handlePushToggle = async (enabled: boolean) => {
+    if (!user?.user_id || pushLoading) return;
+    
+    setPushLoading(true);
+    setPushError(null);
+
+    try {
+      if (enabled) {
+        // Request permission and subscribe
+        const permission = await Notification.requestPermission();
+        
+        if (permission !== 'granted') {
+          setPushError('Please allow notifications in your browser settings');
+          setPushLoading(false);
+          return;
+        }
+
+        // Get VAPID key
+        const vapidResponse = await fetchVapidKey();
+        if (!vapidResponse.public_key) {
+          setPushError('Push notifications not configured on server');
+          setPushLoading(false);
+          return;
+        }
+
+        // Register service worker and get subscription
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidResponse.public_key),
+        });
+
+        // Send subscription to backend
+        const subscriptionJson = subscription.toJSON();
+        await subscribeToPush(user.user_id, {
+          endpoint: subscriptionJson.endpoint!,
+          keys: {
+            p256dh: subscriptionJson.keys!.p256dh,
+            auth: subscriptionJson.keys!.auth,
+          },
+        });
+
+        setNotificationsEnabled(true);
+      } else {
+        // Unsubscribe
+        await unsubscribeFromPush(user.user_id);
+        setNotificationsEnabled(false);
+      }
+    } catch (err) {
+      console.error('Failed to toggle push notifications:', err);
+      setPushError('Failed to update notification settings');
+    } finally {
+      setPushLoading(false);
+    }
+  };
 
   const handleUpdatePassword = async () => {
     // 1. Basic Validation
@@ -123,7 +219,7 @@ const UserProfile: React.FC = () => {
           {/* User Info Card with Change Password */}
           {user && (
             <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-lg">
-              <h3 className="text-lg font-semibold text-[#000] mb-4 font-['Segoe_UI'] flex items-center gap-2">Account Information</h3>
+              <h3 className="text-lg font-semibold text-[#000] mb-4 font-kodchasan flex items-center gap-2">Account Information</h3>
 
               <div className="flex flex-col gap-3">
                 <ProfileRow label="Full Name" value={`${user.first_name} ${user.last_name}`} />
@@ -191,7 +287,7 @@ const UserProfile: React.FC = () => {
           {/* Baby Info Card */}
           {user?.baby && (
             <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-lg">
-              <h3 className="text-lg font-semibold text-[#000] mb-4 font-['Segoe_UI'] flex items-center gap-2">Baby Information</h3>
+              <h3 className="text-lg font-semibold text-[#000] mb-4 font-kodchasan flex items-center gap-2">Baby Information</h3>
 
               <div className="flex flex-col gap-3">
                 <ProfileRow label="Name" value={`${user.baby.first_name} ${user.baby.last_name}`} />
@@ -203,15 +299,32 @@ const UserProfile: React.FC = () => {
 
           {/* Settings Card */}
           <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-lg">
-            <h3 className="text-lg font-semibold text-[#000] mb-4 font-['Segoe_UI'] flex items-center gap-2">Settings</h3>
+            <h3 className="text-lg font-semibold text-[#000] mb-4 font-kodchasan flex items-center gap-2">Settings</h3>
 
             <div className="flex justify-between items-center py-3 border-b border-gray-100">
               <div>
                 <p className="m-0 font-medium text-gray-700">Push Notifications</p>
-                <p className="m-0 mt-1 text-xs text-gray-400">Get alerts when baby wakes up</p>
+                <p className="m-0 mt-1 text-xs text-gray-400">
+                  {!pushConfigured 
+                    ? 'Not configured on server'
+                    : notificationsEnabled 
+                    ? 'Enabled - get alerts when baby wakes up'
+                    : 'Disabled - tap to enable alerts'}
+                </p>
+                {pushError && (
+                  <p className="m-0 mt-1 text-xs text-red-500">{pushError}</p>
+                )}
               </div>
-              <ToggleSwitch enabled={notificationsEnabled} onChange={setNotificationsEnabled} />
+              <ToggleSwitch 
+                enabled={notificationsEnabled} 
+                onChange={handlePushToggle}
+                disabled={pushLoading || !pushConfigured}
+              />
             </div>
+            
+            {pushLoading && (
+              <p className="text-xs text-gray-400 mt-2">Updating notification settings...</p>
+            )}
           </div>
 
           {/* App Info */}

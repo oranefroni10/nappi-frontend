@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import ReactECharts from 'echarts-for-react';
 import type { AuthUser } from '../types/auth';
-import type { SensorDataPoint, DailySleepPoint, SleepPattern } from '../types/metrics';
+import type { SensorDataPoint, DailySleepPoint, SleepPattern, InsightsResponse } from '../types/metrics';
 import { useLayoutContext } from '../components/LayoutContext';
-import { fetchSensorStats, fetchDailySleep, fetchSleepPatterns } from '../api/stats';
+import { fetchSensorStats, fetchDailySleep, fetchSleepPatterns, fetchInsights } from '../api/stats';
 
 interface LocalSleepPattern {
   label: string;
@@ -43,6 +43,12 @@ const Statistics: React.FC = () => {
   const [sensorError, setSensorError] = useState<string | null>(null);
   const [sleepError, setSleepError] = useState<string | null>(null);
   const [patternsError, setPatternsError] = useState<string | null>(null);
+
+  // AI Insights state
+  const [insights, setInsights] = useState<InsightsResponse | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
+  const [insightsExpanded, setInsightsExpanded] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('nappi_user');
@@ -156,6 +162,26 @@ const Statistics: React.FC = () => {
     }
   }, [babyId]);
 
+  // Fetch AI insights
+  const loadInsights = useCallback(async () => {
+    if (!babyId) return;
+
+    setInsightsLoading(true);
+    setInsightsError(null);
+
+    try {
+      const response = await fetchInsights(babyId);
+      setInsights(response);
+    } catch (err: any) {
+      console.error('Failed to fetch insights:', err);
+      const message = err.response?.data?.detail || 'No insights available yet';
+      setInsightsError(typeof message === 'string' ? message : 'Failed to load insights');
+      setInsights(null);
+    } finally {
+      setInsightsLoading(false);
+    }
+  }, [babyId]);
+
   // Load data when baby ID is available
   useEffect(() => {
     if (babyId) {
@@ -174,6 +200,12 @@ const Statistics: React.FC = () => {
       loadPatternsData();
     }
   }, [babyId, loadPatternsData]);
+
+  useEffect(() => {
+    if (babyId) {
+      loadInsights();
+    }
+  }, [babyId, loadInsights]);
 
   // Sensor chart options
   const getSensorUnit = () => {
@@ -467,7 +499,7 @@ const Statistics: React.FC = () => {
           {/* Sensor Data Over Time */}
           <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-lg">
             <div className="flex flex-row justify-between items-start sm:items-center gap-3 mb-4">
-              <h3 className="text-lg font-semibold text-[#000] font-['Segoe_UI']">Room Conditions</h3>
+              <h3 className="text-lg font-semibold text-[#000] font-kodchasan">Room Conditions</h3>
               <div className="flex flex-wrap gap-2">
                 <select
                   value={selectedSensor}
@@ -510,7 +542,7 @@ const Statistics: React.FC = () => {
           {/* Sleep Duration Chart */}
           <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-lg">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-              <h3 className="text-lg font-semibold text-[#000] font-['Segoe_UI']">Daily Sleep Duration</h3>
+              <h3 className="text-lg font-semibold text-[#000] font-kodchasan">Daily Sleep Duration</h3>
             </div>
 
             <div className="flex flex-wrap gap-2 mb-4">
@@ -549,7 +581,7 @@ const Statistics: React.FC = () => {
 
           {/* Sleep Patterns - 24 Hour Clock */}
           <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-lg">
-            <h3 className="text-lg font-semibold text-[#000] mb-4 font-['Segoe_UI']">Typical Sleep Patterns (24-Hour Clock)</h3>
+            <h3 className="text-lg font-semibold text-[#000] mb-4 font-kodchasan">Typical Sleep Patterns (24-Hour Clock)</h3>
 
             {patternsLoading ? (
               <LoadingSpinner />
@@ -571,7 +603,7 @@ const Statistics: React.FC = () => {
 
           {/* Insights Card */}
           <div className="bg-gradient-to-br from-[#FEF3C7] to-[#FDE68A] rounded-3xl p-5 shadow-lg">
-            <h3 className="text-lg font-semibold text-[#92400E] mb-3 font-['Segoe_UI'] flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-[#92400E] mb-3 font-kodchasan flex items-center gap-2">
               Weekly Insights
             </h3>
 
@@ -613,6 +645,126 @@ const Statistics: React.FC = () => {
               </p>
             )}
           </div>
+
+          {/* AI Insights Card */}
+          <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-lg">
+            <div 
+              className="flex items-center justify-between cursor-pointer"
+              onClick={() => setInsightsExpanded(!insightsExpanded)}
+            >
+              <h3 className="text-lg font-semibold text-[#000] font-kodchasan flex items-center gap-2">
+                <span className="text-xl">🤖</span>
+                AI Sleep Analysis
+              </h3>
+              <span className={`text-gray-400 text-sm transition-transform duration-300 ${insightsExpanded ? 'rotate-180' : ''}`}>
+                ▼
+              </span>
+            </div>
+
+            {insightsExpanded && (
+              <div className="mt-4 pt-4 border-t border-gray-100" style={{ animation: 'slideDown 0.3s ease-out' }}>
+                {insightsLoading ? (
+                  <LoadingSpinner />
+                ) : insightsError ? (
+                  <div className="text-center py-4">
+                    <p className="text-gray-500 text-sm mb-3">{insightsError}</p>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        loadInsights();
+                      }}
+                      className="px-4 py-2 bg-[#4ECDC4] text-white rounded-lg text-sm hover:bg-[#3dbdb5] transition-colors"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : insights ? (
+                  <div className="space-y-4">
+                    {/* Last awakening info */}
+                    <div className="bg-gray-50 rounded-xl p-4">
+                      <p className="text-sm text-gray-600 mb-2">
+                        <strong>Last analyzed awakening:</strong>{' '}
+                        {new Date(insights.awakened_at).toLocaleString('en-US', {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        <strong>Sleep duration:</strong>{' '}
+                        {Math.floor(insights.sleep_duration_minutes / 60)}h {Math.round(insights.sleep_duration_minutes % 60)}m
+                      </p>
+                    </div>
+
+                    {/* Environmental changes */}
+                    {Object.keys(insights.environmental_changes).length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-700 mb-2">Environmental Changes Detected:</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {Object.entries(insights.environmental_changes).map(([key, change]) => {
+                            const labels: Record<string, string> = {
+                              temp_celcius: '🌡️ Temperature',
+                              humidity: '💧 Humidity',
+                              noise_decibel: '🔊 Noise',
+                            };
+                            const units: Record<string, string> = {
+                              temp_celcius: '°C',
+                              humidity: '%',
+                              noise_decibel: 'dB',
+                            };
+                            const label = labels[key] || key;
+                            const unit = units[key] || '';
+                            const isIncrease = change.direction === 'increase';
+                            
+                            return (
+                              <div key={key} className="bg-gray-50 rounded-lg p-3 text-sm">
+                                <span className="font-medium">{label}</span>
+                                <div className="flex items-center gap-1 mt-1">
+                                  <span className="text-gray-500">{change.start_value?.toFixed(1)}{unit}</span>
+                                  <span className={isIncrease ? 'text-red-500' : 'text-blue-500'}>
+                                    {isIncrease ? '↑' : '↓'}
+                                  </span>
+                                  <span className="text-gray-500">{change.end_value?.toFixed(1)}{unit}</span>
+                                  <span className={`text-xs ${Math.abs(change.change_percent) > 10 ? 'text-orange-500 font-medium' : 'text-gray-400'}`}>
+                                    ({isIncrease ? '+' : ''}{change.change_percent?.toFixed(1)}%)
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* AI insights text */}
+                    {insights.insights && (
+                      <div className="bg-gradient-to-r from-[#E8F7F6] to-[#D5F0EF] rounded-xl p-4">
+                        <h4 className="text-sm font-semibold text-[#2F8F8B] mb-2 flex items-center gap-2">
+                          <span>💡</span> AI Analysis
+                        </h4>
+                        <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                          {insights.insights}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm text-center py-4">
+                    No AI insights available yet. Sleep data will be analyzed after the next awakening event.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <style>{`
+            @keyframes slideDown {
+              from { opacity: 0; transform: translateY(-10px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+          `}</style>
         </div>
       </section>
     </>

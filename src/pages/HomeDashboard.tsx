@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchLastSleepSummary } from '../api/sleep';
 import { fetchCurrentRoomMetrics } from '../api/room';
-import type { LastSleepSummary, RoomMetrics } from '../types/metrics';
+import { fetchSleepStatus, fetchCooldownStatus, submitIntervention } from '../api/alerts';
+import { fetchOptimalStats, fetchInsights } from '../api/stats';
+import type { LastSleepSummary, RoomMetrics, OptimalStatsResponse, InsightsResponse } from '../types/metrics';
 import type { AuthUser } from '../types/auth';
 import { useLayoutContext } from '../components/LayoutContext';
 
@@ -31,6 +33,16 @@ const getGreeting = (): string => {
   return 'Good evening';
 };
 
+// Format time from ISO string to HH:MM
+const formatTime = (isoString: string): string => {
+  const date = new Date(isoString);
+  return date.toLocaleTimeString('en-US', { 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    hour12: false 
+  });
+};
+
 type MetricType = 'temp' | 'soon' | 'humidity' | 'noise' | null;
 
 const HomeDashboard: React.FC = () => {
@@ -44,6 +56,18 @@ const HomeDashboard: React.FC = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [openMetric, setOpenMetric] = useState<MetricType>(null);
   const [showSpinner, setShowSpinner] = useState(false);
+  
+  // Sleep status and intervention state
+  const [isSleeping, setIsSleeping] = useState(false);
+  const [inCooldown, setInCooldown] = useState(false);
+  const [cooldownRemaining, setCooldownRemaining] = useState<number | null>(null);
+  const [interventionLoading, setInterventionLoading] = useState(false);
+  
+  // Optimal stats state
+  const [optimalStats, setOptimalStats] = useState<OptimalStatsResponse | null>(null);
+  
+  // Insights state
+  const [insights, setInsights] = useState<InsightsResponse | null>(null);
 
   useEffect(() => {
     // Load user from localStorage
@@ -53,14 +77,17 @@ const HomeDashboard: React.FC = () => {
     }
   }, []);
 
-  const loadData = async () => {
+  const loadData = useCallback(async (babyId: number) => {
     try {
       setLoading(true);
       setError(null);
       setShowSpinner(false); // Reset spinner state
 
-      // 1. The Data Promise
-      const dataPromise = Promise.all([fetchLastSleepSummary(), fetchCurrentRoomMetrics()]);
+      // 1. The Data Promise - now with baby_id
+      const dataPromise = Promise.all([
+        fetchLastSleepSummary(babyId),
+        fetchCurrentRoomMetrics(babyId)
+      ]);
 
       // 2. The 300ms Threshold Promise
       const thresholdPromise = new Promise<string>((resolve) => setTimeout(() => resolve('timeout'), 300));
@@ -91,11 +118,74 @@ const HomeDashboard: React.FC = () => {
       setLoading(false);
       setShowSpinner(false);
     }
+  }, []);
+
+  // Load sleep status for the baby
+  const loadSleepStatus = useCallback(async (babyId: number) => {
+    try {
+      const [sleepStatus, cooldownStatus] = await Promise.all([
+        fetchSleepStatus(babyId),
+        fetchCooldownStatus(babyId),
+      ]);
+      setIsSleeping(sleepStatus.is_sleeping);
+      setInCooldown(cooldownStatus.in_cooldown);
+      setCooldownRemaining(cooldownStatus.cooldown_remaining_minutes ?? null);
+    } catch (err) {
+      console.error('Failed to load sleep status:', err);
+    }
+  }, []);
+
+  // Load optimal stats for the baby
+  const loadOptimalStats = useCallback(async (babyId: number) => {
+    try {
+      const stats = await fetchOptimalStats(babyId);
+      setOptimalStats(stats);
+    } catch (err) {
+      console.error('Failed to load optimal stats:', err);
+    }
+  }, []);
+
+  // Load AI insights for the baby
+  const loadInsights = useCallback(async (babyId: number) => {
+    try {
+      const insightsData = await fetchInsights(babyId);
+      setInsights(insightsData);
+    } catch (err) {
+      console.error('Failed to load insights:', err);
+    }
+  }, []);
+
+  // Handle parent intervention
+  const handleIntervention = async () => {
+    const babyId = user?.baby?.id;
+    if (!babyId || interventionLoading) return;
+
+    setInterventionLoading(true);
+    try {
+      const action = isSleeping ? 'mark_awake' : 'mark_asleep';
+      const response = await submitIntervention(babyId, action);
+      
+      // Update local state
+      setIsSleeping(response.status === 'sleeping');
+      setInCooldown(true);
+      setCooldownRemaining(response.cooldown_minutes);
+    } catch (err) {
+      console.error('Failed to submit intervention:', err);
+    } finally {
+      setInterventionLoading(false);
+    }
   };
 
+  // Load data when baby_id is available
   useEffect(() => {
-    loadData();
-  }, []);
+    const babyId = user?.baby_id || user?.baby?.id;
+    if (babyId) {
+      loadData(babyId);
+      loadSleepStatus(babyId);
+      loadOptimalStats(babyId);
+      loadInsights(babyId);
+    }
+  }, [user?.baby_id, user?.baby?.id, loadData, loadSleepStatus, loadOptimalStats, loadInsights]);
 
   const handleMetricClick = (metric: MetricType) => {
     if (openMetric === metric) {
@@ -106,15 +196,26 @@ const HomeDashboard: React.FC = () => {
   };
 
   const getMetricInfo = (metric: MetricType): string => {
+    const hasOptimalData = optimalStats?.has_data ?? false;
+    
     switch (metric) {
       case 'temp':
-        return `Most of ${babyName}'s longest naps happened at around 24°C. Try keeping the room at this temperature for better sleep.`;
+        if (hasOptimalData && optimalStats?.temperature !== null) {
+          return `Most of ${babyName}'s longest naps happened at around ${optimalStats.temperature.toFixed(0)}°C. Try keeping the room at this temperature for better sleep.`;
+        }
+        return `We're still learning ${babyName}'s preferences. Keep tracking sleep to see optimal temperature recommendations!`;
       case 'soon':
-        return `Exciting updates are on the way! The next version of Nappi will feature new advanced sensors, giving you even deeper insights in ${babyName} sleep environment.`;
+        return `Exciting updates are on the way! The next version of Nappi will feature new advanced sensors, giving you even deeper insights in ${babyName}'s sleep environment.`;
       case 'humidity':
-        return `Higher humidity levels (around 50-60%) help ${babyName} sleep longer. Consider using a humidifier.`;
+        if (hasOptimalData && optimalStats?.humidity !== null) {
+          return `${babyName} sleeps best at around ${optimalStats.humidity.toFixed(0)}% humidity. Consider using a humidifier to maintain this level.`;
+        }
+        return `We're still learning ${babyName}'s preferences. Keep tracking sleep to see optimal humidity recommendations!`;
       case 'noise':
-        return `${babyName} sleeps better with some background noise. White noise machines can help mask sudden sounds.`;
+        if (hasOptimalData && optimalStats?.noise !== null) {
+          return `${babyName} sleeps best with noise levels around ${optimalStats.noise.toFixed(0)} dB. White noise machines can help maintain consistent levels.`;
+        }
+        return `We're still learning ${babyName}'s preferences. Keep tracking sleep to see optimal noise level recommendations!`;
       default:
         return '';
     }
@@ -167,7 +268,10 @@ const HomeDashboard: React.FC = () => {
           </div>
           <p className="text-red-600 mb-4 font-medium">{error}</p>
           <button
-            onClick={loadData}
+            onClick={() => {
+              const babyId = user?.baby_id || user?.baby?.id;
+              if (babyId) loadData(babyId);
+            }}
             className="bg-[#ffc857] hover:bg-[#ffb83d] text-black font-semibold px-6 py-3 rounded-xl transition-all shadow-md hover:shadow-lg active:scale-95"
           >
             retry
@@ -190,7 +294,11 @@ const HomeDashboard: React.FC = () => {
 
           <div className="text-center">
             <h1 className="text-2xl font-semibold font-[Kodchasan] text-[#000] m-0">{getGreeting()}</h1>
-            <p className="text-sm font-[Kodchasan] text-gray-600 m-0">{`${user?.first_name} ${user?.last_name}` || 'there'}</p>
+            <p className="text-sm font-[Kodchasan] text-gray-600 m-0">
+              {user?.first_name 
+                ? `${user.first_name} ${user.last_name || ''}`.trim() 
+                : user?.username || 'there'}
+            </p>
           </div>
 
           <img src="/logo.svg" alt="Nappi" className="w-12 h-12" />
@@ -216,14 +324,17 @@ const HomeDashboard: React.FC = () => {
           {/* Last Nap Info */}
           <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-lg">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-[#000] m-0 font-['Segoe_UI']">Last Nap Info</h3>
+              <h3 className="text-lg font-semibold text-[#000] m-0 font-kodchasan">Last Nap Info</h3>
 
               <div className="flex items-center gap-3">
-                <button onClick={loadData} className="cursor-pointer">
+                <button onClick={() => {
+                  const babyId = user?.baby_id || user?.baby?.id;
+                  if (babyId) loadData(babyId);
+                }} className="cursor-pointer">
                   <img src="/refresh.svg" alt="refresh" className="w-6 h-6" />
                 </button>
 
-                <button onClick={() => navigate('/sleep-data')} className="text-[#4ECDC4] hover:text-[#3db8b0] transition-colors">
+                <button onClick={() => navigate('/statistics')} className="text-[#4ECDC4] hover:text-[#3db8b0] transition-colors">
                   <img src="/material-symbols-light-chart-data-outline.svg" alt="View data" className="w-7 h-7" />
                 </button>
               </div>
@@ -231,7 +342,11 @@ const HomeDashboard: React.FC = () => {
 
             <div className="rounded-2xl p-4">
               <div className="flex flex-col gap-3">
-                <InfoRow icon={<img src="/napTime-icon.svg" alt="Nap" className="w-5 h-5" />} label="Nap Time" value="9:20 - 11:15" />
+                <InfoRow 
+                  icon={<img src="/napTime-icon.svg" alt="Nap" className="w-5 h-5" />} 
+                  label="Nap Time" 
+                  value={sleepSummary ? `${formatTime(sleepSummary.started_at)} - ${formatTime(sleepSummary.ended_at)}` : '--:-- - --:--'} 
+                />
                 <InfoRow
                   icon={<img src="/iconoir-temperature-low.svg" alt="Temp" className="w-5 h-5" />}
                   label="Average Temperature"
@@ -251,10 +366,52 @@ const HomeDashboard: React.FC = () => {
             </div>
           </div>
 
+          {/* Sleep Status - Parent Intervention */}
+          <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-[#E8F7F6] flex items-center justify-center">
+                  {isSleeping ? (
+                    <span className="text-2xl">😴</span>
+                  ) : (
+                    <span className="text-2xl">👀</span>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-[#000] m-0 font-[Kodchasan]">Sleep Status</h3>
+                  <p className="text-sm text-gray-500 m-0">
+                    {isSleeping ? 'Currently sleeping' : 'Currently awake'}
+                    {inCooldown && cooldownRemaining && (
+                      <span className="text-[#5DCCCC]"> · Override active ({cooldownRemaining}m)</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleIntervention}
+                disabled={interventionLoading}
+                className={`px-4 py-2.5 rounded-xl font-medium font-[Kodchasan] text-sm transition-all active:scale-95 ${
+                  interventionLoading
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : isSleeping
+                    ? 'bg-[#FFE5E5] text-[#E57373] hover:bg-[#FFD0D0]'
+                    : 'bg-[#E8F7F6] text-[#5DCCCC] hover:bg-[#D5F0EF]'
+                }`}
+              >
+                {interventionLoading ? 'Updating...' : isSleeping ? 'Mark Awake' : 'Mark Asleep'}
+              </button>
+            </div>
+            {inCooldown && (
+              <p className="text-xs text-gray-400 mt-3 m-0">
+                💡 Sensor detection is paused. Manual override is active.
+              </p>
+            )}
+          </div>
+
           {/* Sleep Preferences */}
           <div className="h-fit">
             <div className="flex items-start py-0 px-[18px] mb-4">
-              <h3 className="text-lg font-semibold text-[#000] m-0 font-['Segoe_UI']">{babyName} sleeps best in</h3>
+              <h3 className="text-lg font-semibold text-[#000] m-0 font-kodchasan">{babyName} sleeps best in</h3>
             </div>
 
             <div className="flex items-center justify-start md:justify-center gap-4 overflow-x-auto overflow-y-hidden whitespace-nowrap font-[Kodchasan] pb-4 px-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -303,7 +460,7 @@ const HomeDashboard: React.FC = () => {
           {/* Room Status */}
           {roomMetrics && (
             <div className="">
-              <h3 className="text-lg font-semibold text-[#000] mb-4 font-['Segoe_UI']">Room Status</h3>
+              <h3 className="text-lg font-semibold text-[#000] mb-4 font-kodchasan">Room Status</h3>
 
               <div className="grid grid-cols-2 gap-3">
                 <StatusCard
@@ -335,17 +492,18 @@ const HomeDashboard: React.FC = () => {
 
           {/* Nappi Recommends */}
           <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-lg">
-            <h3 className="text-lg font-semibold text-[#000] mb-3 font-['Segoe_UI']">Nappi Recommends</h3>
+            <h3 className="text-lg font-semibold text-[#000] mb-3 font-kodchasan">Nappi Recommends</h3>
             <p className="text-base leading-snug text-gray-700 m-0">
-              {sleepSummary && sleepSummary.sleep_quality_score < 80 ? (
+              {insights?.insights ? (
+                insights.insights
+              ) : sleepSummary && sleepSummary.sleep_quality_score < 80 ? (
                 <>
                   {babyName}&apos;s last nap quality was <strong>{sleepSummary.sleep_quality_score}/100</strong>. Try adjusting the room temperature or reducing
                   noise levels for better sleep.
                 </>
               ) : (
                 <>
-                  {babyName}&apos;s last nap was probably interrupted by a sudden high noise at around 10:15 AM. Try keeping the room quiet or using gentle white
-                  noise to help them rest longer.
+                  Keep tracking {babyName}&apos;s sleep to receive personalized AI-powered recommendations!
                 </>
               )}
             </p>

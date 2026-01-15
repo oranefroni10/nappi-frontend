@@ -42,6 +42,8 @@ const Onboarding: React.FC = () => {
       localStorage.setItem('nappi_user', JSON.stringify({
         user_id: data.user_id,
         username: data.username,
+        first_name: user.first_name,  // preserve from existing user
+        last_name: user.last_name,    // preserve from existing user
         baby_id: data.baby_id,
         baby: data.baby,
       }));

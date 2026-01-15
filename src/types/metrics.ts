@@ -88,3 +88,11 @@ export interface InsightsResponse {
   insights: string;
   correlation_id: number;
 }
+
+export interface OptimalStatsResponse {
+  baby_id: number;
+  temperature: number | null;
+  humidity: number | null;
+  noise: number | null;
+  has_data: boolean;
+}
