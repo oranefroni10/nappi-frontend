@@ -10,6 +10,8 @@ export interface AuthUser {
   username: string;
   baby_id: number | null;
   baby: Baby | null;
+  first_name: string;
+  last_name: string;
 }
 
 export interface SignUpRequest {
@@ -28,6 +30,8 @@ export interface SignUpResponse {
   baby_registered: boolean;
   baby: Baby | null;
   message: string;
+  first_name: string;
+  last_name: string;
 }
 
 export interface SignInRequest {
@@ -41,6 +45,8 @@ export interface SignInResponse {
   baby_id: number | null;
   baby: Baby | null;
   message: string;
+  first_name: string;
+  last_name: string;
 }
 
 export interface RegisterBabyRequest {
@@ -50,3 +56,12 @@ export interface RegisterBabyRequest {
   gender?: string;
 }
 
+export interface changePasswordRequest {
+  user_id: number;
+  old_password: string;
+  new_password: string;
+}
+
+export interface changePasswordResponse {
+  password_changed: boolean;
+}

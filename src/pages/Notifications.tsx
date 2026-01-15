@@ -1,5 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import type { AuthUser } from '../types/auth';
+import { useLayoutContext } from '../components/LayoutContext';
+import { fetchAlerts, markAlertAsRead, markAllAlertsAsRead } from '../api/alerts';
+import type { Alert } from '../api/alerts';
+import { useAlerts } from '../hooks/useAlerts';
 
 interface NotificationItem {
   id: number;
@@ -11,44 +15,32 @@ interface NotificationItem {
   read: boolean;
 }
 
-const MOCK_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: 1,
-    title: 'Baby woke up',
-    message: 'Baby was awake for 5 minutes at 03:12.',
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-    severity: 'info',
-    icon: '👶',
-    read: false,
-  },
-  {
-    id: 2,
-    title: 'Room temperature high',
-    message: 'Temperature reached 26°C at 15:42. Consider turning on the AC.',
-    createdAt: new Date(Date.now() - 7200000).toISOString(),
-    severity: 'warning',
-    icon: '🌡️',
-    read: false,
-  },
-  {
-    id: 3,
-    title: 'Great sleep quality!',
-    message: 'Last night\'s sleep scored 92/100. Keep up the good environment!',
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-    severity: 'info',
-    icon: '⭐',
-    read: true,
-  },
-  {
-    id: 4,
-    title: 'Noise level alert',
-    message: 'Detected loud noise (65dB) at 14:30. This may affect nap quality.',
-    createdAt: new Date(Date.now() - 172800000).toISOString(),
-    severity: 'warning',
-    icon: '🔊',
-    read: true,
-  },
-];
+// Map alert types to icons
+const getIconForType = (type: string): string => {
+  switch (type) {
+    case 'awakening':
+      return '👶';
+    case 'temperature':
+      return '🌡️';
+    case 'humidity':
+      return '💧';
+    case 'noise':
+      return '🔊';
+    default:
+      return '🔔';
+  }
+};
+
+// Convert API Alert to NotificationItem
+const alertToNotification = (alert: Alert): NotificationItem => ({
+  id: alert.id,
+  title: alert.title,
+  message: alert.message,
+  createdAt: alert.created_at,
+  severity: alert.severity,
+  icon: getIconForType(alert.type),
+  read: alert.read,
+});
 
 const severityStyles: Record<NotificationItem['severity'], { bg: string; border: string; text: string }> = {
   info: { bg: '#EFF6FF', border: '#3B82F6', text: '#1E40AF' },
@@ -57,9 +49,14 @@ const severityStyles: Record<NotificationItem['severity'], { bg: string; border:
 };
 
 const Notifications: React.FC = () => {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+  const { setMenuOpen } = useLayoutContext();
 
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load user from localStorage
   useEffect(() => {
     const stored = localStorage.getItem('nappi_user');
     if (stored) {
@@ -67,17 +64,72 @@ const Notifications: React.FC = () => {
     }
   }, []);
 
-  const babyName = user?.baby?.first_name || 'Baby';
-  const unreadCount = notifications.filter(n => !n.read).length;
+  // Subscribe to real-time alerts
+  const { latestAlert } = useAlerts({
+    userId: user?.user_id,
+    onNewAlert: (alert) => {
+      // Add new alert to the top of the list
+      setNotifications((prev) => [alertToNotification(alert), ...prev]);
+    },
+  });
 
-  const markAsRead = (id: number) => {
-    setNotifications(prev => 
-      prev.map(n => n.id === id ? { ...n, read: true } : n)
-    );
+  // Load alerts from API
+  const loadAlerts = useCallback(async () => {
+    if (!user?.user_id) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetchAlerts(user.user_id, { limit: 50 });
+      setNotifications(response.alerts.map(alertToNotification));
+    } catch (err) {
+      console.error('Failed to load alerts:', err);
+      setError('Failed to load notifications');
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.user_id]);
+
+  // Load alerts when user is available
+  useEffect(() => {
+    if (user?.user_id) {
+      loadAlerts();
+    }
+  }, [user?.user_id, loadAlerts]);
+
+  const babyName = user?.baby?.first_name || 'Baby';
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const markAsRead = async (id: number) => {
+    if (!user?.user_id) return;
+
+    // Optimistic update
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+
+    try {
+      await markAlertAsRead(id, user.user_id);
+    } catch (err) {
+      // Revert on error
+      console.error('Failed to mark alert as read:', err);
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: false } : n)));
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const markAllAsRead = async () => {
+    if (!user?.user_id) return;
+
+    // Optimistic update
+    const previousNotifications = [...notifications];
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+
+    try {
+      await markAllAlertsAsRead(user.user_id);
+    } catch (err) {
+      // Revert on error
+      console.error('Failed to mark all alerts as read:', err);
+      setNotifications(previousNotifications);
+    }
   };
 
   const formatTime = (dateStr: string) => {
@@ -95,158 +147,128 @@ const Notifications: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: '0.5rem' }}>
-      {/* Header */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        marginBottom: '1.5rem'
-      }}>
-        <div>
-          <h1 style={{ 
-            margin: '0 0 0.25rem 0', 
-            fontSize: '1.75rem', 
-            color: '#1F2937',
-            fontWeight: '600'
-          }}>
-            Notifications 🔔
-          </h1>
-          <p style={{ margin: 0, color: '#6B7280' }}>
-            {unreadCount > 0 ? `${unreadCount} unread alerts` : 'All caught up!'}
-          </p>
-        </div>
-        {unreadCount > 0 && (
-          <button
-            onClick={markAllAsRead}
-            style={{
-              background: '#F3F4F6',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '0.5rem 1rem',
-              fontSize: '0.8rem',
-              color: '#4B5563',
-              fontWeight: '500',
-              cursor: 'pointer'
-            }}
-          >
-            Mark all read
-          </button>
-        )}
-      </div>
+    <>
+      {/* Header Section */}
+      <section className="pt-6 px-5 pb-6 relative z-10">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2">
+            <div className="cursor-pointer rounded-full hover:bg-gray-50 transition-colors" onClick={() => setMenuOpen(true)}>
+              <img className="[border:none] p-0 bg-[transparent] w-12 h-[37px] relative" alt="Menu" src="/hugeicons-menu-02.svg" />
+            </div>
+          </div>
 
-      {/* Notifications List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-        {notifications.length === 0 ? (
-          <div style={{
-            background: 'white',
-            borderRadius: '20px',
-            padding: '3rem 1.5rem',
-            textAlign: 'center',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
-          }}>
-            <span style={{ fontSize: '3rem' }}>🎉</span>
-            <h3 style={{ margin: '1rem 0 0.5rem 0', color: '#1F2937' }}>
-              No notifications
-            </h3>
-            <p style={{ margin: 0, color: '#6B7280' }}>
-              {babyName} is sleeping soundly!
-            </p>
+          <div className="text-center">
+            <h1 className="text-2xl font-semibold font-[Kodchasan] text-[#000] m-0">Notifications</h1>
+            <p className="text-sm font-[Kodchasan] text-gray-600 m-0">{unreadCount > 0 ? `${unreadCount} unread alerts` : 'All caught up!'}</p>
+          </div>
+
+          <img src="/logo.svg" alt="Nappi" className="w-12 h-12" />
+        </div>
+
+        {/* Mark All Read Button */}
+        {unreadCount > 0 && (
+          <div className="flex justify-end">
+            <button
+              onClick={markAllAsRead}
+              className="bg-white/80 backdrop-blur-sm rounded-xl px-4 py-2 shadow-md hover:shadow-lg transition-all active:scale-95 text-sm font-medium text-gray-700"
+            >
+              Mark all read
+            </button>
+          </div>
+        )}
+      </section>
+
+      {/* Main Content */}
+      <section className="px-5 pb-8 relative z-10">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <img
+                src="/logo.svg"
+                alt="Loading..."
+                className="w-16 h-16 mx-auto mb-4"
+                style={{ animation: 'pulse 1.5s ease-in-out infinite' }}
+              />
+              <p className="text-gray-600 font-[Kodchasan]">Loading notifications...</p>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-8 shadow-lg text-center">
+            <span className="text-4xl mb-4 block">⚠️</span>
+            <p className="text-red-600 mb-4">{error}</p>
+            <button
+              onClick={loadAlerts}
+              className="bg-[#5DCCCC] text-white px-4 py-2 rounded-xl font-medium hover:bg-[#4DBDBD] transition-all"
+            >
+              Retry
+            </button>
           </div>
         ) : (
-          notifications.map(notification => {
-            const styles = severityStyles[notification.severity];
-            return (
-              <div
-                key={notification.id}
-                onClick={() => markAsRead(notification.id)}
-                style={{
-                  background: notification.read ? 'white' : styles.bg,
-                  borderRadius: '16px',
-                  padding: '1.25rem',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                  borderLeft: `4px solid ${styles.border}`,
-                  cursor: 'pointer',
-                  transition: 'transform 0.2s, box-shadow 0.2s',
-                  opacity: notification.read ? 0.7 : 1
-                }}
-              >
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                  <div style={{
-                    width: '44px',
-                    height: '44px',
-                    borderRadius: '12px',
-                    background: notification.read ? '#F3F4F6' : 'white',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '1.5rem',
-                    flexShrink: 0
-                  }}>
-                    {notification.icon}
-                  </div>
-                  
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'flex-start',
-                      marginBottom: '0.35rem'
-                    }}>
-                      <h4 style={{ 
-                        margin: 0, 
-                        fontSize: '1rem', 
-                        fontWeight: '600',
-                        color: notification.read ? '#6B7280' : '#1F2937'
-                      }}>
-                        {notification.title}
-                      </h4>
-                      {!notification.read && (
-                        <div style={{
-                          width: '8px',
-                          height: '8px',
-                          borderRadius: '50%',
-                          background: styles.border,
-                          flexShrink: 0,
-                          marginTop: '6px'
-                        }} />
-                      )}
-                    </div>
-                    
-                    <p style={{ 
-                      margin: '0 0 0.5rem 0', 
-                      fontSize: '0.9rem',
-                      color: notification.read ? '#9CA3AF' : '#4B5563',
-                      lineHeight: '1.4'
-                    }}>
-                      {notification.message}
-                    </p>
-                    
-                    <span style={{ 
-                      fontSize: '0.75rem', 
-                      color: '#9CA3AF',
-                      fontWeight: '500'
-                    }}>
-                      {formatTime(notification.createdAt)}
-                    </span>
-                  </div>
-                </div>
+          <div className="flex flex-col gap-4">
+            {notifications.length === 0 ? (
+              <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-12 shadow-lg text-center">
+                <span className="text-6xl">🎉</span>
+                <h3 className="mt-4 mb-2 text-xl font-semibold text-[#000] font-[Kodchasan]">No notifications</h3>
+                <p className="m-0 text-gray-600">{babyName} is sleeping soundly!</p>
               </div>
-            );
-          })
-        )}
-      </div>
+            ) : (
+              notifications.map((notification) => {
+                const styles = severityStyles[notification.severity];
+                return (
+                  <div
+                    key={notification.id}
+                    onClick={() => markAsRead(notification.id)}
+                    className={`bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-lg cursor-pointer transition-all hover:shadow-xl active:scale-[0.99] ${
+                      notification.read ? 'opacity-70' : ''
+                    }`}
+                    style={{
+                      borderLeft: `4px solid ${styles.border}`,
+                    }}
+                  >
+                    <div className="flex gap-4">
+                      <div
+                        className={`w-11 h-11 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 ${
+                          notification.read ? 'bg-gray-100' : 'bg-white'
+                        }`}
+                        style={{
+                          backgroundColor: notification.read ? '#F3F4F6' : styles.bg,
+                        }}
+                      >
+                        {notification.icon}
+                      </div>
 
-      {/* Info Footer */}
-      <p style={{ 
-        textAlign: 'center', 
-        color: '#9CA3AF', 
-        fontSize: '0.75rem',
-        marginTop: '2rem'
-      }}>
-        Notifications are based on sensor data and sleep analysis
-      </p>
-    </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-start mb-1">
+                          <h4 className={`m-0 text-base font-semibold font-[Kodchasan] ${notification.read ? 'text-gray-600' : 'text-[#000]'}`}>
+                            {notification.title}
+                          </h4>
+                          {!notification.read && <div className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: styles.border }} />}
+                        </div>
+
+                        <p className={`m-0 mb-2 text-sm leading-relaxed ${notification.read ? 'text-gray-400' : 'text-gray-700'}`}>{notification.message}</p>
+
+                        <span className="text-xs text-gray-400 font-medium">{formatTime(notification.createdAt)}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {/* Info Footer */}
+        <p className="text-center text-gray-400 text-xs mt-8">Notifications are based on sensor data and sleep analysis</p>
+      </section>
+
+      {/* CSS Animations */}
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.7; transform: scale(1.05); }
+        }
+      `}</style>
+    </>
   );
 };
 

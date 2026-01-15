@@ -1,15 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { fetchLastSleepSummary } from '../api/sleep';
 import { fetchCurrentRoomMetrics } from '../api/room';
-import type { LastSleepSummary, RoomMetrics } from '../types/metrics';
+import { fetchSleepStatus, fetchCooldownStatus, submitIntervention } from '../api/alerts';
+import { fetchOptimalStats, fetchInsights } from '../api/stats';
+import type { LastSleepSummary, RoomMetrics, OptimalStatsResponse, InsightsResponse } from '../types/metrics';
 import type { AuthUser } from '../types/auth';
+import { useLayoutContext } from '../components/LayoutContext';
 
 // Helper function to calculate age from birthdate
 const calculateAge = (birthdate: string): string => {
   const birth = new Date(birthdate);
   const today = new Date();
   const months = (today.getFullYear() - birth.getFullYear()) * 12 + (today.getMonth() - birth.getMonth());
-  
+
   if (months < 1) {
     const days = Math.floor((today.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24));
     return `${days} days`;
@@ -29,12 +33,41 @@ const getGreeting = (): string => {
   return 'Good evening';
 };
 
+// Format time from ISO string to HH:MM
+const formatTime = (isoString: string): string => {
+  const date = new Date(isoString);
+  return date.toLocaleTimeString('en-US', { 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    hour12: false 
+  });
+};
+
+type MetricType = 'temp' | 'soon' | 'humidity' | 'noise' | null;
+
 const HomeDashboard: React.FC = () => {
+  const navigate = useNavigate();
+  const { setMenuOpen } = useLayoutContext();
+
   const [sleepSummary, setSleepSummary] = useState<LastSleepSummary | null>(null);
   const [roomMetrics, setRoomMetrics] = useState<RoomMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [openMetric, setOpenMetric] = useState<MetricType>(null);
+  const [showSpinner, setShowSpinner] = useState(false);
+  
+  // Sleep status and intervention state
+  const [isSleeping, setIsSleeping] = useState(false);
+  const [inCooldown, setInCooldown] = useState(false);
+  const [cooldownRemaining, setCooldownRemaining] = useState<number | null>(null);
+  const [interventionLoading, setInterventionLoading] = useState(false);
+  
+  // Optimal stats state
+  const [optimalStats, setOptimalStats] = useState<OptimalStatsResponse | null>(null);
+  
+  // Insights state
+  const [insights, setInsights] = useState<InsightsResponse | null>(null);
 
   useEffect(() => {
     // Load user from localStorage
@@ -44,27 +77,149 @@ const HomeDashboard: React.FC = () => {
     }
   }, []);
 
-  const loadData = async () => {
+  const loadData = useCallback(async (babyId: number) => {
     try {
       setLoading(true);
       setError(null);
-      const [sleep, room] = await Promise.all([
-        fetchLastSleepSummary(),
-        fetchCurrentRoomMetrics(),
+      setShowSpinner(false); // Reset spinner state
+
+      // 1. The Data Promise - now with baby_id
+      const dataPromise = Promise.all([
+        fetchLastSleepSummary(babyId),
+        fetchCurrentRoomMetrics(babyId)
       ]);
-      setSleepSummary(sleep);
-      setRoomMetrics(room);
+
+      // 2. The 300ms Threshold Promise
+      const thresholdPromise = new Promise<string>((resolve) => setTimeout(() => resolve('timeout'), 300));
+
+      // 3. Race them
+      const winner = await Promise.race([dataPromise.then(() => 'data'), thresholdPromise]);
+
+      if (winner === 'data') {
+        // Scenario A: Fast (<300ms). Show no spinner, just render data.
+        const [sleep, room] = await dataPromise;
+        setSleepSummary(sleep);
+        setRoomMetrics(room);
+        setLoading(false);
+      } else {
+        // Scenario B: Slow (>300ms). Show spinner AND wait 1.5s minimum.
+        setShowSpinner(true);
+
+        const minLoadingTime = new Promise((resolve) => setTimeout(resolve, 1500));
+        const [[sleep, room]] = await Promise.all([dataPromise, minLoadingTime]);
+
+        setSleepSummary(sleep);
+        setRoomMetrics(room);
+        setLoading(false);
+      }
     } catch (err) {
       console.error(err);
       setError('Failed to load data from server.');
-    } finally {
       setLoading(false);
+      setShowSpinner(false);
+    }
+  }, []);
+
+  // Load sleep status for the baby
+  const loadSleepStatus = useCallback(async (babyId: number) => {
+    try {
+      const [sleepStatus, cooldownStatus] = await Promise.all([
+        fetchSleepStatus(babyId),
+        fetchCooldownStatus(babyId),
+      ]);
+      setIsSleeping(sleepStatus.is_sleeping);
+      setInCooldown(cooldownStatus.in_cooldown);
+      setCooldownRemaining(cooldownStatus.cooldown_remaining_minutes ?? null);
+    } catch (err) {
+      console.error('Failed to load sleep status:', err);
+    }
+  }, []);
+
+  // Load optimal stats for the baby
+  const loadOptimalStats = useCallback(async (babyId: number) => {
+    try {
+      const stats = await fetchOptimalStats(babyId);
+      setOptimalStats(stats);
+    } catch (err) {
+      console.error('Failed to load optimal stats:', err);
+    }
+  }, []);
+
+  // Load AI insights for the baby
+  const loadInsights = useCallback(async (babyId: number) => {
+    try {
+      const insightsData = await fetchInsights(babyId);
+      setInsights(insightsData);
+    } catch (err) {
+      console.error('Failed to load insights:', err);
+    }
+  }, []);
+
+  // Handle parent intervention
+  const handleIntervention = async () => {
+    const babyId = user?.baby?.id;
+    if (!babyId || interventionLoading) return;
+
+    setInterventionLoading(true);
+    try {
+      const action = isSleeping ? 'mark_awake' : 'mark_asleep';
+      const response = await submitIntervention(babyId, action);
+      
+      // Update local state
+      setIsSleeping(response.status === 'sleeping');
+      setInCooldown(true);
+      setCooldownRemaining(response.cooldown_minutes);
+    } catch (err) {
+      console.error('Failed to submit intervention:', err);
+    } finally {
+      setInterventionLoading(false);
     }
   };
 
+  // Load data when baby_id is available
   useEffect(() => {
-    loadData();
-  }, []);
+    const babyId = user?.baby_id || user?.baby?.id;
+    if (babyId) {
+      loadData(babyId);
+      loadSleepStatus(babyId);
+      loadOptimalStats(babyId);
+      loadInsights(babyId);
+    }
+  }, [user?.baby_id, user?.baby?.id, loadData, loadSleepStatus, loadOptimalStats, loadInsights]);
+
+  const handleMetricClick = (metric: MetricType) => {
+    if (openMetric === metric) {
+      setOpenMetric(null); // Close if clicking the same card
+    } else {
+      setOpenMetric(metric); // Open the clicked card
+    }
+  };
+
+  const getMetricInfo = (metric: MetricType): string => {
+    const hasOptimalData = optimalStats?.has_data ?? false;
+    
+    switch (metric) {
+      case 'temp':
+        if (hasOptimalData && optimalStats?.temperature !== null) {
+          return `Most of ${babyName}'s longest naps happened at around ${optimalStats.temperature.toFixed(0)}°C. Try keeping the room at this temperature for better sleep.`;
+        }
+        return `We're still learning ${babyName}'s preferences. Keep tracking sleep to see optimal temperature recommendations!`;
+      case 'soon':
+        return `Exciting updates are on the way! The next version of Nappi will feature new advanced sensors, giving you even deeper insights in ${babyName}'s sleep environment.`;
+      case 'humidity':
+        if (hasOptimalData && optimalStats?.humidity !== null) {
+          return `${babyName} sleeps best at around ${optimalStats.humidity.toFixed(0)}% humidity. Consider using a humidifier to maintain this level.`;
+        }
+        return `We're still learning ${babyName}'s preferences. Keep tracking sleep to see optimal humidity recommendations!`;
+      case 'noise':
+        if (hasOptimalData && optimalStats?.noise !== null) {
+          return `${babyName} sleeps best with noise levels around ${optimalStats.noise.toFixed(0)} dB. White noise machines can help maintain consistent levels.`;
+        }
+        return `We're still learning ${babyName}'s preferences. Keep tracking sleep to see optimal noise level recommendations!`;
+      default:
+        return '';
+    }
+  };
 
   // Get baby name from user data or fallback to sleep summary
   const babyName = user?.baby?.first_name || sleepSummary?.baby_name || 'Baby';
@@ -72,332 +227,379 @@ const HomeDashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        minHeight: '50vh'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ 
-            fontSize: '3rem', 
-            marginBottom: '1rem',
-            animation: 'pulse 1.5s ease-in-out infinite'
-          }}>
-            👶
+      <div className="min-h-screen w-full flex items-center justify-center">
+        {showSpinner && (
+          <div className="text-center flex flex-col items-center justify-center fade-in">
+            <img
+              src="/logo.svg"
+              alt="Loading..."
+              className="w-24 h-24 mb-6"
+              style={{
+                animation: 'pulse 1.5s ease-in-out infinite',
+              }}
+            />
+            <p className="text-gray-600 font-[Kodchasan]">Loading dashboard...</p>
           </div>
-          <p style={{ color: '#6B7280' }}>Loading dashboard...</p>
-        </div>
+        )}
+
+        <style>{`
+          @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.05); }
+          }
+          .fade-in {
+            animation: fadeIn 0.3s ease-in;
+          }
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+        `}</style>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={{ textAlign: 'center', padding: '2rem' }}>
-        <p style={{ color: '#EF4444', marginBottom: '1rem' }}>{error}</p>
-        <button
-          onClick={loadData}
-          style={{
-            background: '#FFD166',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '0.5rem 1rem',
-            cursor: 'pointer',
-            fontWeight: '500'
-          }}
-        >
-          Retry
-        </button>
+      <div className="min-h-screen w-full flex items-center justify-center">
+        <div className="text-center bg-white/80 backdrop-blur-sm rounded-3xl p-8 shadow-lg max-w-md">
+          <div className="text-5xl mb-4">
+            <img src="/logo.svg" alt="Loading..." className="w-24 h-24 mx-auto"></img>
+          </div>
+          <p className="text-red-600 mb-4 font-medium">{error}</p>
+          <button
+            onClick={() => {
+              const babyId = user?.baby_id || user?.baby?.id;
+              if (babyId) loadData(babyId);
+            }}
+            className="bg-[#ffc857] hover:bg-[#ffb83d] text-black font-semibold px-6 py-3 rounded-xl transition-all shadow-md hover:shadow-lg active:scale-95"
+          >
+            retry
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '0.5rem' }}>
-      {/* Greeting Header */}
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h1 style={{ 
-          margin: '0 0 0.25rem 0', 
-          fontSize: '1.75rem', 
-          color: '#1F2937',
-          fontWeight: '600'
-        }}>
-          {getGreeting()}, {user?.username || 'there'}! 👋
-        </h1>
-        <p style={{ 
-          margin: 0, 
-          color: '#6B7280',
-          fontSize: '1rem'
-        }}>
-          Here&apos;s how {babyName} is doing today
-        </p>
-      </div>
-
-      {/* Baby Profile Card */}
-      <div style={{
-        background: 'linear-gradient(135deg, #FFE4E1 0%, #E6F7FF 100%)',
-        borderRadius: '20px',
-        padding: '1.5rem',
-        marginBottom: '1.5rem',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem' }}>
-          <div style={{
-            width: '70px',
-            height: '70px',
-            borderRadius: '50%',
-            background: 'linear-gradient(135deg, #B4E7E5 0%, #7DD3C8 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '2.25rem',
-            boxShadow: '0 4px 8px rgba(125, 211, 200, 0.3)'
-          }}>
-            👶
+    <>
+      {/* Header Section */}
+      <section className="pt-6 px-5 pb-6 relative z-10">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2">
+            <div className="cursor-pointer rounded-full hover:bg-gray-50 transition-colors" onClick={() => setMenuOpen(true)}>
+              <img className="[border:none] p-0 bg-[transparent] w-12 h-[37px] relative" alt="Menu" src="/hugeicons-menu-02.svg" />
+            </div>
           </div>
+
+          <div className="text-center">
+            <h1 className="text-2xl font-semibold font-[Kodchasan] text-[#000] m-0">{getGreeting()}</h1>
+            <p className="text-sm font-[Kodchasan] text-gray-600 m-0">
+              {user?.first_name 
+                ? `${user.first_name} ${user.last_name || ''}`.trim() 
+                : user?.username || 'there'}
+            </p>
+          </div>
+
+          <img src="/logo.svg" alt="Nappi" className="w-12 h-12" />
+        </div>
+
+        {/* Baby Profile Card */}
+        <div className="flex items-center justify-center gap-4">
+          <img src="/baby.png" alt={`${babyName}'s profile`} className="w-20 h-20 rounded-full shadow-md object-cover" />
           <div>
-            <h2 style={{ margin: 0, fontSize: '1.5rem', color: '#1F2937', fontWeight: '600' }}>
-              {babyName}
-            </h2>
+            <h2 className="text-xl font-semibold font-[Kodchasan] text-[#000] m-0">Baby {babyName}</h2>
             {babyAge && (
-              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.9rem', color: '#6B7280' }}>
-                {babyAge} old
+              <p className="text-sm text-gray-600 m-0 mt-1">
+                Age: {babyAge} old
               </p>
             )}
           </div>
         </div>
+      </section>
 
-        <div style={{
-          background: 'white',
-          borderRadius: '16px',
-          padding: '1.25rem',
-          marginBottom: '1rem'
-        }}>
-          <h3 style={{ 
-            margin: '0 0 1rem 0', 
-            fontSize: '1.1rem',
-            color: '#374151',
-            fontWeight: '600'
-          }}>
-            Last Nap Summary
-          </h3>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <InfoRow icon="⏰" label="Nap Time" value="9:20 - 11:15" />
-            <InfoRow icon="🌡️" label="Average Temp" value={`${roomMetrics?.temperature_c.toFixed(0) || '--'}°C`} />
-            <InfoRow icon="🔊" label="Noise Level" value={`${roomMetrics?.noise_db.toFixed(0) || '--'} dB`} />
-            <InfoRow icon="💧" label="Humidity" value={`${roomMetrics?.humidity_percent.toFixed(0) || '--'}%`} />
-          </div>
-        </div>
+      {/* Main Content */}
+      <section className="px-5 pb-8 relative z-10">
+        <div className="flex flex-col gap-5">
+          {/* Last Nap Info */}
+          <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-[#000] m-0 font-kodchasan">Last Nap Info</h3>
 
-        <div style={{
-          background: 'white',
-          borderRadius: '16px',
-          padding: '1.25rem'
-        }}>
-          <h4 style={{ 
-            margin: '0 0 1rem 0', 
-            fontSize: '1rem',
-            color: '#374151',
-            fontWeight: '600'
-          }}>
-            {babyName}&apos;s Sleep Preferences
-          </h4>
-          
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <MetricCard icon="🌡️" label="Temp" value="−" trend="cooler" />
-            <MetricCard icon="☀️" label="Light" value="+" trend="brighter" />
-            <MetricCard icon="💧" label="Humidity" value="+" trend="more" />
-          </div>
+              <div className="flex items-center gap-3">
+                <button onClick={() => {
+                  const babyId = user?.baby_id || user?.baby?.id;
+                  if (babyId) loadData(babyId);
+                }} className="cursor-pointer">
+                  <img src="/refresh.svg" alt="refresh" className="w-6 h-6" />
+                </button>
 
-          <p style={{
-            fontSize: '0.85rem',
-            color: '#6B7280',
-            marginTop: '1rem',
-            marginBottom: 0,
-            lineHeight: '1.5',
-            background: '#F9FAFB',
-            padding: '0.75rem',
-            borderRadius: '8px'
-          }}>
-            💡 Most of {babyName}&apos;s longest naps happened at around 24°C. Try keeping the room at this temperature for better sleep.
-          </p>
-        </div>
-      </div>
+                <button onClick={() => navigate('/statistics')} className="text-[#4ECDC4] hover:text-[#3db8b0] transition-colors">
+                  <img src="/material-symbols-light-chart-data-outline.svg" alt="View data" className="w-7 h-7" />
+                </button>
+              </div>
+            </div>
 
-      {/* Room Metrics Summary Card */}
-      {roomMetrics && (
-        <div style={{
-          background: 'white',
-          borderRadius: '20px',
-          padding: '1.5rem',
-          marginBottom: '1.5rem',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-            <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#1F2937', fontWeight: '600' }}>
-              Room Status
-            </h3>
-            <button
-              onClick={loadData}
-              style={{
-                background: '#F3F4F6',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '0.5rem 1rem',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                color: '#4B5563',
-                fontWeight: '500',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.35rem'
-              }}
-            >
-              <span>🔄</span> Refresh
-            </button>
-          </div>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
-            <StatusCard 
-              icon="🌡️" 
-              label="Temperature" 
-              value={`${roomMetrics.temperature_c.toFixed(1)}°C`}
-              color="#FF6B6B"
-              status={roomMetrics.temperature_c > 26 ? 'high' : roomMetrics.temperature_c < 18 ? 'low' : 'normal'}
-            />
-            <StatusCard 
-              icon="💧" 
-              label="Humidity" 
-              value={`${roomMetrics.humidity_percent.toFixed(0)}%`}
-              color="#4ECDC4"
-              status="normal"
-            />
-            <StatusCard 
-              icon="🔊" 
-              label="Noise" 
-              value={`${roomMetrics.noise_db.toFixed(0)} dB`}
-              color="#95E1D3"
-              status={roomMetrics.noise_db > 50 ? 'high' : 'normal'}
-            />
-            <StatusCard 
-              icon="💡" 
-              label="Light" 
-              value={`${roomMetrics.light_lux.toFixed(0)} lux`}
-              color="#FFD93D"
-              status="normal"
-            />
+            <div className="rounded-2xl p-4">
+              <div className="flex flex-col gap-3">
+                <InfoRow 
+                  icon={<img src="/napTime-icon.svg" alt="Nap" className="w-5 h-5" />} 
+                  label="Nap Time" 
+                  value={sleepSummary ? `${formatTime(sleepSummary.started_at)} - ${formatTime(sleepSummary.ended_at)}` : '--:-- - --:--'} 
+                />
+                <InfoRow
+                  icon={<img src="/iconoir-temperature-low.svg" alt="Temp" className="w-5 h-5" />}
+                  label="Average Temperature"
+                  value={`${roomMetrics?.temperature_c.toFixed(0) || '--'}°C`}
+                />
+                <InfoRow
+                  icon={<img src="/cbi-moisture.svg" alt="Humidity" className="w-5 h-5" />}
+                  label="Average Humidity"
+                  value={`${roomMetrics?.humidity_percent.toFixed(0) || '--'}%`}
+                />
+                <InfoRow
+                  icon={<img src="/sound-icon.svg" alt="Sound" className="w-5 h-5" />}
+                  label="Max Noise Level"
+                  value={`${roomMetrics?.noise_db.toFixed(0) || '--'} dB`}
+                />
+              </div>
+            </div>
           </div>
 
-          <p style={{ 
-            fontSize: '0.8rem', 
-            color: '#9CA3AF', 
-            marginTop: '1.25rem',
-            marginBottom: 0,
-            textAlign: 'center'
-          }}>
-            Last updated: {new Date(roomMetrics.measured_at).toLocaleTimeString()}
-          </p>
-        </div>
-      )}
+          {/* Sleep Status - Parent Intervention */}
+          <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-[#E8F7F6] flex items-center justify-center">
+                  {isSleeping ? (
+                    <span className="text-2xl">😴</span>
+                  ) : (
+                    <span className="text-2xl">👀</span>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-[#000] m-0 font-[Kodchasan]">Sleep Status</h3>
+                  <p className="text-sm text-gray-500 m-0">
+                    {isSleeping ? 'Currently sleeping' : 'Currently awake'}
+                    {inCooldown && cooldownRemaining && (
+                      <span className="text-[#5DCCCC]"> · Override active ({cooldownRemaining}m)</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleIntervention}
+                disabled={interventionLoading}
+                className={`px-4 py-2.5 rounded-xl font-medium font-[Kodchasan] text-sm transition-all active:scale-95 ${
+                  interventionLoading
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : isSleeping
+                    ? 'bg-[#FFE5E5] text-[#E57373] hover:bg-[#FFD0D0]'
+                    : 'bg-[#E8F7F6] text-[#5DCCCC] hover:bg-[#D5F0EF]'
+                }`}
+              >
+                {interventionLoading ? 'Updating...' : isSleeping ? 'Mark Awake' : 'Mark Asleep'}
+              </button>
+            </div>
+            {inCooldown && (
+              <p className="text-xs text-gray-400 mt-3 m-0">
+                💡 Sensor detection is paused. Manual override is active.
+              </p>
+            )}
+          </div>
 
-      {/* Nappi Recommendations Card */}
-      {sleepSummary && sleepSummary.sleep_quality_score < 80 && (
-        <div style={{
-          background: 'linear-gradient(135deg, #FFF9E6 0%, #FFFBF0 100%)',
-          borderRadius: '20px',
-          padding: '1.5rem',
-          marginBottom: '1.5rem',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-          borderLeft: '4px solid #FFD166'
-        }}>
-          <h3 style={{ 
-            margin: '0 0 0.75rem 0', 
-            fontSize: '1.1rem',
-            color: '#92400E',
-            fontWeight: '600',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem'
-          }}>
-            <span>💡</span> Nappi Recommends
-          </h3>
-          <p style={{ 
-            margin: 0, 
-            fontSize: '0.95rem',
-            color: '#78350F',
-            lineHeight: '1.6'
-          }}>
-            {babyName}&apos;s last nap quality was <strong>{sleepSummary.sleep_quality_score}/100</strong>. 
-            Try adjusting the room temperature or reducing noise levels for better sleep.
-          </p>
+          {/* Sleep Preferences */}
+          <div className="h-fit">
+            <div className="flex items-start py-0 px-[18px] mb-4">
+              <h3 className="text-lg font-semibold text-[#000] m-0 font-kodchasan">{babyName} sleeps best in</h3>
+            </div>
+
+            <div className="flex items-center justify-start md:justify-center gap-4 overflow-x-auto overflow-y-hidden whitespace-nowrap font-[Kodchasan] pb-4 px-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              <MetricCard
+                icon={<img src="/temp-icon.svg" alt="Temp" className="w-[38px]" />}
+                label="Temperture"
+                symbol="+"
+                isOpen={openMetric === 'temp'}
+                onClick={() => handleMetricClick('temp')}
+              />
+              <MetricCard
+                icon={<img src="/cbi-moisture1.svg" alt="Humidity" className="w-[38px]" />}
+                label="Humidity"
+                symbol="+"
+                isOpen={openMetric === 'humidity'}
+                onClick={() => handleMetricClick('humidity')}
+              />
+              <MetricCard
+                icon={<img src="/sound-icon1.svg" alt="Noise" className="w-[38px]" />}
+                label="Noise level"
+                symbol="+"
+                isOpen={openMetric === 'noise'}
+                onClick={() => handleMetricClick('noise')}
+              />
+              <MetricCard
+                icon={<img src="/star.svg" alt="star" className="w-[38px]" />}
+                label="Coming Soon"
+                symbol="+"
+                isOpen={openMetric === 'soon'}
+                onClick={() => handleMetricClick('soon')}
+              />
+            </div>
+
+            {openMetric && (
+              <div
+                className="bg-white h-[86px] rounded-[20px] overflow-hidden shrink-0 flex items-center justify-center py-4 px-[19px] box-border "
+                style={{
+                  animation: 'fadeIn 0.3s ease-out',
+                }}
+              >
+                <p className="text-sm text-gray-700 m-0 leading-relaxed">💡 {getMetricInfo(openMetric)}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Room Status */}
+          {roomMetrics && (
+            <div className="">
+              <h3 className="text-lg font-semibold text-[#000] mb-4 font-kodchasan">Room Status</h3>
+
+              <div className="grid grid-cols-2 gap-3">
+                <StatusCard
+                  icon={<img src="/temp-icon.svg" alt="Temp" className="w-[38px]" />}
+                  label="Temperature"
+                  value={`${roomMetrics.temperature_c.toFixed(1)}°C`}
+                  color="#FF6B6B"
+                  status={roomMetrics.temperature_c > 26 ? 'high' : roomMetrics.temperature_c < 18 ? 'low' : 'normal'}
+                />
+                <StatusCard
+                  icon={<img src="/cbi-moisture1.svg" alt="Humidity" className="w-[38px]" />}
+                  label="Humidity"
+                  value={`${roomMetrics.humidity_percent.toFixed(0)}%`}
+                  color="#4ECDC4"
+                  status="normal"
+                />
+                <StatusCard
+                  icon={<img src="/sound-icon1.svg" alt="Noise" className="w-[38px]" />}
+                  label="Noise"
+                  value={`${roomMetrics.noise_db.toFixed(0)} dB`}
+                  color="#95E1D3"
+                  status={roomMetrics.noise_db > 50 ? 'high' : 'normal'}
+                />
+              </div>
+
+              <p className="text-xs text-gray-400 mt-4 text-center m-0">Last updated: {new Date(roomMetrics.measured_at).toLocaleTimeString()}</p>
+            </div>
+          )}
+
+          {/* Nappi Recommends */}
+          <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-lg">
+            <h3 className="text-lg font-semibold text-[#000] mb-3 font-kodchasan">Nappi Recommends</h3>
+            <p className="text-base leading-snug text-gray-700 m-0">
+              {insights?.insights ? (
+                insights.insights
+              ) : sleepSummary && sleepSummary.sleep_quality_score < 80 ? (
+                <>
+                  {babyName}&apos;s last nap quality was <strong>{sleepSummary.sleep_quality_score}/100</strong>. Try adjusting the room temperature or reducing
+                  noise levels for better sleep.
+                </>
+              ) : (
+                <>
+                  Keep tracking {babyName}&apos;s sleep to receive personalized AI-powered recommendations!
+                </>
+              )}
+            </p>
+          </div>
         </div>
-      )}
-    </div>
+      </section>
+
+      {/* CSS Animations */}
+      <style>{`
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(5px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
+    </>
   );
 };
 
-const InfoRow: React.FC<{ icon: string; label: string; value: string }> = ({ icon, label, value }) => (
-  <div style={{ 
-    display: 'flex', 
-    alignItems: 'center', 
-    gap: '0.75rem',
-    padding: '0.5rem 0',
-    borderBottom: '1px solid #F3F4F6'
-  }}>
-    <span style={{ fontSize: '1.25rem' }}>{icon}</span>
-    <span style={{ fontSize: '0.95rem', color: '#6B7280', flex: 1 }}>{label}</span>
-    <span style={{ fontSize: '0.95rem', color: '#1F2937', fontWeight: '600' }}>{value}</span>
+const InfoRow: React.FC<{ icon: React.ReactNode; label: string; value: string }> = ({ icon, label, value }) => (
+  <div className="flex items-center gap-3 py-2">
+    <span className="flex items-center justify-center w-6 h-6">{icon}</span>
+    <span className="text-sm text-gray-600 flex-1">{label}</span>
+    <span className="text-sm text-[#000] font-semibold">{value}</span>
   </div>
 );
 
-const MetricCard: React.FC<{ icon: string; label: string; value: string; trend: string }> = ({ icon, label, value, trend }) => (
-  <div style={{
-    flex: 1,
-    textAlign: 'center',
-    padding: '1rem 0.5rem',
-    background: '#F9FAFB',
-    borderRadius: '12px'
-  }}>
-    <div style={{ fontSize: '1.75rem', marginBottom: '0.35rem' }}>{icon}</div>
-    <div style={{ fontSize: '0.8rem', color: '#6B7280', marginBottom: '0.25rem' }}>{label}</div>
-    <div style={{ 
-      fontSize: '1.5rem', 
-      fontWeight: '700', 
-      color: value === '+' ? '#10B981' : value === '−' ? '#3B82F6' : '#1F2937'
-    }}>
-      {value}
+const MetricCard: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  symbol: string;
+  isOpen: boolean;
+  onClick: () => void;
+}> = ({ icon, label, symbol, isOpen, onClick }) => (
+  <div
+    onClick={onClick}
+    className={`relative h-[115.8px] rounded-[42.7px] bg-white shrink-0 flex flex-col items-center pt-[9px] px-[23px] pb-[8.4px] box-border gap-[12.2px] cursor-pointer transition-all hover:shadow-lg ${
+      isOpen ? 'shadow-lg overflow-visible z-10' : 'overflow-hidden'
+    }`}
+  >
+    <div className="flex items-start justify-center">{icon}</div>
+    <div
+      className={`h-[30px] relative leading-[91%] font-semibold text-base font-[Kodchasan] flex items-center justify-center ${
+        label.includes('level') ? 'whitespace-pre-line text-center' : ''
+      }`}
+    >
+      {label}
     </div>
-    <div style={{ fontSize: '0.7rem', color: '#9CA3AF', marginTop: '0.25rem' }}>{trend}</div>
+    <div className="flex items-center justify-center">
+      <div className="h-3.5 relative leading-[89%] font-semibold text-base font-[Kodchasan]">{isOpen ? '−' : symbol}</div>
+    </div>
+
+    {isOpen && (
+      <img
+        src="/open-box-nack.svg"
+        alt=""
+        className="absolute left-1/2 -translate-x-1/2 w-[109px] max-w-none pointer-events-none"
+        style={{
+          bottom: '-30px',
+          zIndex: 20,
+          marginLeft: '25px',
+        }}
+      />
+    )}
   </div>
 );
 
-const StatusCard: React.FC<{ 
-  icon: string; 
-  label: string; 
-  value: string; 
+const StatusCard: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  value: string;
   color: string;
   status: 'normal' | 'high' | 'low';
 }> = ({ icon, label, value, color, status }) => (
-  <div style={{
-    padding: '1.25rem',
-    background: status === 'high' ? '#FEF2F2' : status === 'low' ? '#EFF6FF' : '#F9FAFB',
-    borderRadius: '16px',
-    borderLeft: `4px solid ${color}`
-  }}>
-    <div style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }}>{icon}</div>
-    <div style={{ fontSize: '0.8rem', color: '#6B7280', marginBottom: '0.35rem' }}>{label}</div>
-    <div style={{ fontSize: '1.25rem', fontWeight: '700', color: '#1F2937' }}>{value}</div>
+  <div className={`rounded-3xl p-5 shadow-lg ${status === 'high' ? 'bg-red-50' : status === 'low' ? 'bg-gray-50' : 'bg-white/90'}`} style={{ borderLeftColor: color }}>
+    <div className="text-3xl mb-2">{icon}</div>
+    <div className="text-xs text-gray-600 mb-1">{label}</div>
+    <div className="text-xl font-bold text-gray-800">{value}</div>
     {status !== 'normal' && (
-      <div style={{ 
-        fontSize: '0.7rem', 
-        color: status === 'high' ? '#DC2626' : '#2563EB',
-        marginTop: '0.25rem',
-        fontWeight: '500'
-      }}>
-        {status === 'high' ? '⚠️ Too high' : '❄️ Too low'}
-      </div>
+      <div className={`text-xs font-medium mt-1 ${status === 'high' ? 'text-red-600' : 'text-blue-600'}`}>{status === 'high' ? '⚠️ Too high' : '❄️ Too low'}</div>
     )}
   </div>
 );
