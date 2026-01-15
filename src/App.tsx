@@ -13,6 +13,7 @@ import HomeDashboard from './pages/HomeDashboard';
 import Statistics from './pages/Statistics';
 import UserProfile from './pages/UserProfile';
 import Notifications from './pages/Notifications';
+import Chat from './pages/Chat';
 
 const App: React.FC = () => {
   return (
@@ -70,6 +71,16 @@ const App: React.FC = () => {
             <ProtectedRoute>
               <Layout>
                 <Notifications />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/chat"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <Chat />
               </Layout>
             </ProtectedRoute>
           }

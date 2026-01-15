@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { AuthUser } from '../types/auth';
-import { authApi } from '../api/auth';
+import type { AuthUser, BabyNote } from '../types/auth';
+import { authApi, babiesApi } from '../api/auth';
 import { useLayoutContext } from '../components/LayoutContext';
 import { fetchVapidKey, fetchPushStatus, subscribeToPush, unsubscribeFromPush } from '../api/alerts';
 
@@ -48,13 +48,135 @@ const UserProfile: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  
+  // Multi-note system state
+  const [notes, setNotes] = useState<BabyNote[]>([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [isAddingNote, setIsAddingNote] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
+  const [noteTitle, setNoteTitle] = useState('');
+  const [noteContent, setNoteContent] = useState('');
+  const [noteError, setNoteError] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem('nappi_user');
     if (stored) {
-      setUser(JSON.parse(stored));
+      const userData = JSON.parse(stored);
+      setUser(userData);
     }
   }, []);
+
+  // Fetch notes from server when user loads
+  const fetchNotes = useCallback(async () => {
+    if (!user?.user_id || !user?.baby?.id) return;
+    
+    setNotesLoading(true);
+    try {
+      const { data } = await babiesApi.getNotes(user.baby.id, user.user_id);
+      setNotes(data.notes || []);
+    } catch (err) {
+      console.error('Failed to fetch notes:', err);
+    } finally {
+      setNotesLoading(false);
+    }
+  }, [user?.user_id, user?.baby?.id]);
+
+  useEffect(() => {
+    if (user?.baby?.id) {
+      fetchNotes();
+    }
+  }, [user?.baby?.id, fetchNotes]);
+
+  // Create a new note
+  const handleCreateNote = async () => {
+    if (!user?.user_id || !user?.baby?.id) return;
+    if (!noteTitle.trim() || !noteContent.trim()) {
+      setNoteError('Please fill in both title and content');
+      return;
+    }
+    
+    setNotesLoading(true);
+    setNoteError(null);
+    
+    try {
+      const { data } = await babiesApi.createNote(user.baby.id, user.user_id, {
+        title: noteTitle.trim(),
+        content: noteContent.trim(),
+      });
+      setNotes([data, ...notes]);
+      setNoteTitle('');
+      setNoteContent('');
+      setIsAddingNote(false);
+    } catch (err) {
+      console.error('Failed to create note:', err);
+      setNoteError('Failed to create note');
+    } finally {
+      setNotesLoading(false);
+    }
+  };
+
+  // Update an existing note
+  const handleUpdateNote = async () => {
+    if (!user?.user_id || !user?.baby?.id || !editingNoteId) return;
+    if (!noteTitle.trim() || !noteContent.trim()) {
+      setNoteError('Please fill in both title and content');
+      return;
+    }
+    
+    setNotesLoading(true);
+    setNoteError(null);
+    
+    try {
+      const { data } = await babiesApi.updateNote(user.baby.id, editingNoteId, user.user_id, {
+        title: noteTitle.trim(),
+        content: noteContent.trim(),
+      });
+      setNotes(notes.map(n => n.id === editingNoteId ? data : n));
+      setNoteTitle('');
+      setNoteContent('');
+      setEditingNoteId(null);
+    } catch (err) {
+      console.error('Failed to update note:', err);
+      setNoteError('Failed to update note');
+    } finally {
+      setNotesLoading(false);
+    }
+  };
+
+  // Delete a note
+  const handleDeleteNote = async (noteId: number) => {
+    if (!user?.user_id || !user?.baby?.id) return;
+    if (!confirm('Are you sure you want to delete this note?')) return;
+    
+    setNotesLoading(true);
+    
+    try {
+      await babiesApi.deleteNote(user.baby.id, noteId, user.user_id);
+      setNotes(notes.filter(n => n.id !== noteId));
+    } catch (err) {
+      console.error('Failed to delete note:', err);
+    } finally {
+      setNotesLoading(false);
+    }
+  };
+
+  // Start editing a note
+  const startEditingNote = (note: BabyNote) => {
+    setEditingNoteId(note.id);
+    setNoteTitle(note.title);
+    setNoteContent(note.content);
+    setIsAddingNote(false);
+    setNoteError(null);
+  };
+
+  // Cancel editing/adding
+  const cancelNoteForm = () => {
+    setIsAddingNote(false);
+    setEditingNoteId(null);
+    setNoteTitle('');
+    setNoteContent('');
+    setNoteError(null);
+  };
 
   // Check push notification status when user loads
   const checkPushStatus = useCallback(async () => {
@@ -88,7 +210,6 @@ const UserProfile: React.FC = () => {
 
     try {
       if (enabled) {
-        // Request permission and subscribe
         const permission = await Notification.requestPermission();
         
         if (permission !== 'granted') {
@@ -97,7 +218,6 @@ const UserProfile: React.FC = () => {
           return;
         }
 
-        // Get VAPID key
         const vapidResponse = await fetchVapidKey();
         if (!vapidResponse.public_key) {
           setPushError('Push notifications not configured on server');
@@ -105,14 +225,12 @@ const UserProfile: React.FC = () => {
           return;
         }
 
-        // Register service worker and get subscription
         const registration = await navigator.serviceWorker.ready;
         const subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(vapidResponse.public_key),
         });
 
-        // Send subscription to backend
         const subscriptionJson = subscription.toJSON();
         await subscribeToPush(user.user_id, {
           endpoint: subscriptionJson.endpoint!,
@@ -124,7 +242,6 @@ const UserProfile: React.FC = () => {
 
         setNotificationsEnabled(true);
       } else {
-        // Unsubscribe
         await unsubscribeFromPush(user.user_id);
         setNotificationsEnabled(false);
       }
@@ -137,7 +254,6 @@ const UserProfile: React.FC = () => {
   };
 
   const handleUpdatePassword = async () => {
-    // 1. Basic Validation
     if (!currentPassword || !newPassword || !confirmPassword) {
       setError('Please fill in all fields.');
       return;
@@ -154,14 +270,12 @@ const UserProfile: React.FC = () => {
     setLoading(true);
 
     try {
-      // 3. API Call
       const { data } = await authApi.changePassword({
         user_id: user.user_id,
         old_password: currentPassword,
         new_password: newPassword,
       });
 
-      // 4. Handle Success
       if (data.password_changed) {
         setSuccess('Password updated successfully!');
         setCurrentPassword('');
@@ -232,10 +346,8 @@ const UserProfile: React.FC = () => {
                     <span className={`text-gray-400 text-xs transition-transform duration-300 ${isChangePasswordOpen ? 'rotate-180' : ''}`}>▼</span>
                   </button>
 
-                  {/* Expandable Password Form */}
                   {isChangePasswordOpen && (
                     <div className="flex flex-col gap-3 mt-2 pl-1 pr-1 pb-1" style={{ animation: 'slideDown 0.3s ease-out' }}>
-                      {/* Status Messages */}
                       {error && <div className="text-red-500 text-xs px-1">{error}</div>}
                       {success && <div className="text-green-500 text-xs px-1">{success}</div>}
 
@@ -297,6 +409,128 @@ const UserProfile: React.FC = () => {
             </div>
           )}
 
+          {/* Baby Notes Card - Multi-Note System */}
+          {user?.baby && (
+            <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-lg">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-[#000] font-kodchasan">Notes about {user.baby.first_name}</h3>
+                  <p className="text-xs text-gray-400 mt-1">Allergies, health conditions, or anything the AI should know</p>
+                </div>
+                {!isAddingNote && !editingNoteId && (
+                  <button
+                    onClick={() => { setIsAddingNote(true); setNoteError(null); }}
+                    className="px-3 py-1.5 bg-[#4ECDC4] hover:bg-[#3dbdb5] text-white text-sm font-medium rounded-lg transition-all shadow-sm hover:shadow-md active:scale-95"
+                  >
+                    + Add Note
+                  </button>
+                )}
+              </div>
+
+              {/* Add/Edit Note Form */}
+              {(isAddingNote || editingNoteId) && (
+                <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200" style={{ animation: 'slideDown 0.3s ease-out' }}>
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">
+                    {editingNoteId ? 'Edit Note' : 'Add New Note'}
+                  </h4>
+                  
+                  {noteError && (
+                    <div className="text-red-500 text-xs mb-3">{noteError}</div>
+                  )}
+                  
+                  <input
+                    type="text"
+                    placeholder="Title (e.g., Allergies, Health Conditions)"
+                    value={noteTitle}
+                    onChange={(e) => setNoteTitle(e.target.value)}
+                    maxLength={200}
+                    className="w-full px-4 py-2.5 rounded-xl text-sm border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#4ECDC4]/50 transition-all placeholder:text-gray-400 mb-3"
+                  />
+                  
+                  <textarea
+                    placeholder="Content (e.g., Lactose intolerant, avoid dairy products...)"
+                    value={noteContent}
+                    onChange={(e) => setNoteContent(e.target.value)}
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-[#4ECDC4]/50 resize-none placeholder:text-gray-400"
+                  />
+                  
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={editingNoteId ? handleUpdateNote : handleCreateNote}
+                      disabled={notesLoading}
+                      className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${
+                        notesLoading
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-[#4ECDC4] hover:bg-[#3dbdb5] text-white shadow-sm hover:shadow-md active:scale-[0.98]'
+                      }`}
+                    >
+                      {notesLoading ? 'Saving...' : (editingNoteId ? 'Update' : 'Save')}
+                    </button>
+                    <button
+                      onClick={cancelNoteForm}
+                      className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 bg-gray-200 hover:bg-gray-300 transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Notes List */}
+              {notesLoading && notes.length === 0 ? (
+                <div className="text-center py-6 text-gray-400 text-sm">Loading notes...</div>
+              ) : notes.length === 0 ? (
+                <div className="text-center py-6 text-gray-400 text-sm">
+                  No notes yet. Add your first note to help the AI understand your baby better.
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {notes.map((note) => (
+                    <div
+                      key={note.id}
+                      className="p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-gray-200 transition-all"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-gray-800 text-sm truncate">{note.title}</h4>
+                          <p className="text-gray-600 text-sm mt-1 whitespace-pre-wrap break-words">
+                            {note.content}
+                          </p>
+                          {note.updated_at && (
+                            <p className="text-xs text-gray-400 mt-2">
+                              Updated: {new Date(note.updated_at).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => startEditingNote(note)}
+                            className="p-1.5 text-gray-400 hover:text-[#4ECDC4] hover:bg-[#4ECDC4]/10 rounded-lg transition-all"
+                            title="Edit"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteNote(note.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            title="Delete"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Settings Card */}
           <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-lg">
             <h3 className="text-lg font-semibold text-[#000] mb-4 font-kodchasan flex items-center gap-2">Settings</h3>
@@ -328,7 +562,7 @@ const UserProfile: React.FC = () => {
           </div>
 
           {/* App Info */}
-          <p className="text-center text-gray-400 text-xs mt-4">Nappi v1.0.0 • Made with 💛 for better baby sleep</p>
+          <p className="text-center text-gray-400 text-xs mt-4">Nappi v1.0.0 • Made with love for better baby sleep</p>
         </div>
       </section>
     </>

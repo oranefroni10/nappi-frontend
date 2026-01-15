@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import ReactECharts from 'echarts-for-react';
 import type { AuthUser } from '../types/auth';
-import type { SensorDataPoint, DailySleepPoint, SleepPattern, InsightsResponse } from '../types/metrics';
+import type { SensorDataPoint, DailySleepPoint, SleepPattern, InsightsResponse, TrendsResponse, EnhancedInsightsResponse } from '../types/metrics';
 import { useLayoutContext } from '../components/LayoutContext';
-import { fetchSensorStats, fetchDailySleep, fetchSleepPatterns, fetchInsights } from '../api/stats';
+import { fetchSensorStats, fetchDailySleep, fetchSleepPatterns, fetchInsights, fetchTrends, fetchEnhancedInsights } from '../api/stats';
 
 interface LocalSleepPattern {
   label: string;
@@ -49,6 +49,12 @@ const Statistics: React.FC = () => {
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [insightsError, setInsightsError] = useState<string | null>(null);
   const [insightsExpanded, setInsightsExpanded] = useState(false);
+
+  // Enhanced AI Analysis state
+  const [trends, setTrends] = useState<TrendsResponse | null>(null);
+  const [trendsLoading, setTrendsLoading] = useState(false);
+  const [enhancedInsights, setEnhancedInsights] = useState<EnhancedInsightsResponse | null>(null);
+  const [enhancedInsightsLoading, setEnhancedInsightsLoading] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('nappi_user');
@@ -182,6 +188,38 @@ const Statistics: React.FC = () => {
     }
   }, [babyId]);
 
+  // Fetch trend analysis
+  const loadTrends = useCallback(async () => {
+    if (!babyId) return;
+
+    setTrendsLoading(true);
+    try {
+      const response = await fetchTrends(babyId);
+      setTrends(response);
+    } catch (err: any) {
+      console.error('Failed to fetch trends:', err);
+      setTrends(null);
+    } finally {
+      setTrendsLoading(false);
+    }
+  }, [babyId]);
+
+  // Fetch enhanced insights
+  const loadEnhancedInsights = useCallback(async () => {
+    if (!babyId) return;
+
+    setEnhancedInsightsLoading(true);
+    try {
+      const response = await fetchEnhancedInsights(babyId);
+      setEnhancedInsights(response);
+    } catch (err: any) {
+      console.error('Failed to fetch enhanced insights:', err);
+      setEnhancedInsights(null);
+    } finally {
+      setEnhancedInsightsLoading(false);
+    }
+  }, [babyId]);
+
   // Load data when baby ID is available
   useEffect(() => {
     if (babyId) {
@@ -204,8 +242,10 @@ const Statistics: React.FC = () => {
   useEffect(() => {
     if (babyId) {
       loadInsights();
+      loadTrends();
+      loadEnhancedInsights();
     }
-  }, [babyId, loadInsights]);
+  }, [babyId, loadInsights, loadTrends, loadEnhancedInsights]);
 
   // Sensor chart options
   const getSensorUnit = () => {
@@ -601,162 +641,197 @@ const Statistics: React.FC = () => {
             )}
           </div>
 
-          {/* Insights Card */}
-          <div className="bg-gradient-to-br from-[#FEF3C7] to-[#FDE68A] rounded-3xl p-5 shadow-lg">
-            <h3 className="text-lg font-semibold text-[#92400E] mb-3 font-kodchasan flex items-center gap-2">
-              Weekly Insights
-            </h3>
-
-            {sleepDurationData.length > 0 ? (
-              <ul className="m-0 pl-5 text-[#78350F] leading-relaxed text-sm">
-                {(() => {
-                  // Find best sleep day
-                  const bestDay = sleepDurationData.reduce((best, curr) =>
-                    curr.total_hours > best.total_hours ? curr : best
-                  , sleepDurationData[0]);
-                  const avgSleep = sleepDurationData.reduce((sum, d) => sum + d.total_hours, 0) / sleepDurationData.length;
-
-                  return (
-                    <>
-                      <li className="mb-2">
-                        {babyName} slept best on <strong>{new Date(bestDay.date).toLocaleDateString('en-US', { weekday: 'long' })}</strong> with {bestDay.total_hours.toFixed(1)} hours
-                      </li>
-                      <li className="mb-2">
-                        Average sleep over this period: <strong>{avgSleep.toFixed(1)} hours/day</strong>
-                      </li>
-                      {sleepPatterns.length > 0 && (
-                        <li>
-                          {sleepPatterns[0].label} typically starts at <strong>{(() => {
-                            const h = Math.floor(sleepPatterns[0].start);
-                            const m = Math.round((sleepPatterns[0].start % 1) * 60);
-                            const period = h >= 12 ? 'PM' : 'AM';
-                            const displayHour = h > 12 ? h - 12 : h === 0 ? 12 : h;
-                            return `${displayHour}:${m.toString().padStart(2, '0')} ${period}`;
-                          })()}</strong>
-                        </li>
-                      )}
-                    </>
-                  );
-                })()}
-              </ul>
-            ) : (
-              <p className="text-[#78350F] text-sm">
-                Start tracking {babyName}&apos;s sleep to see personalized insights here!
-              </p>
-            )}
-          </div>
-
-          {/* AI Insights Card */}
-          <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-lg">
-            <div 
-              className="flex items-center justify-between cursor-pointer"
-              onClick={() => setInsightsExpanded(!insightsExpanded)}
-            >
-              <h3 className="text-lg font-semibold text-[#000] font-kodchasan flex items-center gap-2">
+          {/* AI-Powered Analysis Section - Always Visible */}
+          <div className="bg-gradient-to-br from-[#E8F7F6] to-[#D5F0EF] rounded-3xl p-5 shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-[#2F8F8B] font-kodchasan flex items-center gap-2">
                 <span className="text-xl">🤖</span>
                 AI Sleep Analysis
               </h3>
-              <span className={`text-gray-400 text-sm transition-transform duration-300 ${insightsExpanded ? 'rotate-180' : ''}`}>
-                ▼
-              </span>
+              {(trendsLoading || enhancedInsightsLoading) && (
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#4ECDC4]"></div>
+              )}
             </div>
 
-            {insightsExpanded && (
-              <div className="mt-4 pt-4 border-t border-gray-100" style={{ animation: 'slideDown 0.3s ease-out' }}>
-                {insightsLoading ? (
-                  <LoadingSpinner />
-                ) : insightsError ? (
-                  <div className="text-center py-4">
-                    <p className="text-gray-500 text-sm mb-3">{insightsError}</p>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        loadInsights();
-                      }}
-                      className="px-4 py-2 bg-[#4ECDC4] text-white rounded-lg text-sm hover:bg-[#3dbdb5] transition-colors"
-                    >
-                      Retry
-                    </button>
-                  </div>
-                ) : insights ? (
-                  <div className="space-y-4">
-                    {/* Last awakening info */}
-                    <div className="bg-gray-50 rounded-xl p-4">
-                      <p className="text-sm text-gray-600 mb-2">
-                        <strong>Last analyzed awakening:</strong>{' '}
-                        {new Date(insights.awakened_at).toLocaleString('en-US', {
-                          weekday: 'short',
-                          month: 'short',
-                          day: 'numeric',
-                          hour: 'numeric',
-                          minute: '2-digit'
-                        })}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        <strong>Sleep duration:</strong>{' '}
-                        {Math.floor(insights.sleep_duration_minutes / 60)}h {Math.round(insights.sleep_duration_minutes % 60)}m
-                      </p>
+            <div className="space-y-4">
+              {/* Weekly Trend Summary */}
+              {trends?.ai_insights ? (
+                <div className="bg-white/80 rounded-2xl p-4">
+                  <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <span>📊</span> Weekly Progress
+                  </h4>
+                  <p className="text-sm text-gray-700 mb-3">{trends.ai_insights.summary}</p>
+                  
+                  {/* Trend Stats */}
+                  {trends.weekly && (
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div className="bg-gray-50 rounded-xl p-3">
+                        <div className="text-xs text-gray-500">Avg Sleep</div>
+                        <div className="text-lg font-semibold text-gray-800">{trends.weekly.avg_sleep_hours}h/day</div>
+                      </div>
+                      <div className="bg-gray-50 rounded-xl p-3">
+                        <div className="text-xs text-gray-500">Consistency</div>
+                        <div className="text-lg font-semibold text-gray-800">{trends.weekly.consistency_score}/100</div>
+                      </div>
                     </div>
+                  )}
 
-                    {/* Environmental changes */}
-                    {Object.keys(insights.environmental_changes).length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-gray-700 mb-2">Environmental Changes Detected:</h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {Object.entries(insights.environmental_changes).map(([key, change]) => {
-                            const labels: Record<string, string> = {
-                              temp_celcius: '🌡️ Temperature',
-                              humidity: '💧 Humidity',
-                              noise_decibel: '🔊 Noise',
-                            };
-                            const units: Record<string, string> = {
-                              temp_celcius: '°C',
-                              humidity: '%',
-                              noise_decibel: 'dB',
-                            };
-                            const label = labels[key] || key;
-                            const unit = units[key] || '';
-                            const isIncrease = change.direction === 'increase';
-                            
-                            return (
-                              <div key={key} className="bg-gray-50 rounded-lg p-3 text-sm">
-                                <span className="font-medium">{label}</span>
-                                <div className="flex items-center gap-1 mt-1">
-                                  <span className="text-gray-500">{change.start_value?.toFixed(1)}{unit}</span>
-                                  <span className={isIncrease ? 'text-red-500' : 'text-blue-500'}>
-                                    {isIncrease ? '↑' : '↓'}
-                                  </span>
-                                  <span className="text-gray-500">{change.end_value?.toFixed(1)}{unit}</span>
-                                  <span className={`text-xs ${Math.abs(change.change_percent) > 10 ? 'text-orange-500 font-medium' : 'text-gray-400'}`}>
-                                    ({isIncrease ? '+' : ''}{change.change_percent?.toFixed(1)}%)
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })}
+                  {/* Trend Direction */}
+                  {trends.weekly && (
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        trends.weekly.trend === 'improving' 
+                          ? 'bg-green-100 text-green-700' 
+                          : trends.weekly.trend === 'declining'
+                          ? 'bg-orange-100 text-orange-700'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {trends.weekly.trend === 'improving' ? '↑ Improving' : 
+                         trends.weekly.trend === 'declining' ? '↓ Needs attention' : '→ Stable'}
+                        {' '}({trends.weekly.trend_percentage}%)
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Highlights */}
+                  {trends.ai_insights.highlights.length > 0 && (
+                    <div className="mb-3">
+                      <div className="text-xs font-medium text-green-700 mb-1">Highlights</div>
+                      {trends.ai_insights.highlights.map((h, i) => (
+                        <div key={i} className="flex items-start gap-2 text-sm text-gray-600 mb-1">
+                          <span className="text-green-500">✓</span>
+                          <span>{h}</span>
                         </div>
-                      </div>
-                    )}
+                      ))}
+                    </div>
+                  )}
 
-                    {/* AI insights text */}
-                    {insights.insights && (
-                      <div className="bg-gradient-to-r from-[#E8F7F6] to-[#D5F0EF] rounded-xl p-4">
-                        <h4 className="text-sm font-semibold text-[#2F8F8B] mb-2 flex items-center gap-2">
-                          <span>💡</span> AI Analysis
-                        </h4>
-                        <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                          {insights.insights}
-                        </p>
-                      </div>
-                    )}
+                  {/* Concerns */}
+                  {trends.ai_insights.concerns.length > 0 && (
+                    <div className="mb-3">
+                      <div className="text-xs font-medium text-orange-700 mb-1">Areas to Watch</div>
+                      {trends.ai_insights.concerns.map((c, i) => (
+                        <div key={i} className="flex items-start gap-2 text-sm text-gray-600 mb-1">
+                          <span className="text-orange-500">!</span>
+                          <span>{c}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Age Comparison */}
+                  <div className="text-xs text-gray-500 italic mt-2">
+                    {trends.ai_insights.age_comparison}
                   </div>
-                ) : (
-                  <p className="text-gray-500 text-sm text-center py-4">
-                    No AI insights available yet. Sleep data will be analyzed after the next awakening event.
+                </div>
+              ) : sleepDurationData.length > 0 ? (
+                <div className="bg-white/80 rounded-2xl p-4">
+                  <h4 className="text-sm font-semibold text-gray-800 mb-2">Weekly Summary</h4>
+                  <ul className="m-0 pl-4 text-gray-700 text-sm space-y-1">
+                    {(() => {
+                      const bestDay = sleepDurationData.reduce((best, curr) =>
+                        curr.total_hours > best.total_hours ? curr : best
+                      , sleepDurationData[0]);
+                      const avgSleep = sleepDurationData.reduce((sum, d) => sum + d.total_hours, 0) / sleepDurationData.length;
+                      return (
+                        <>
+                          <li>{babyName} slept best on <strong>{new Date(bestDay.date).toLocaleDateString('en-US', { weekday: 'long' })}</strong> ({bestDay.total_hours.toFixed(1)}h)</li>
+                          <li>Average: <strong>{avgSleep.toFixed(1)} hours/day</strong></li>
+                        </>
+                      );
+                    })()}
+                  </ul>
+                </div>
+              ) : null}
+
+              {/* Enhanced Insights - Last Awakening Analysis */}
+              {enhancedInsights?.insights ? (
+                <div className="bg-white/80 rounded-2xl p-4">
+                  <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <span>💡</span> Last Awakening Analysis
+                  </h4>
+                  
+                  {/* Awakening Info */}
+                  {enhancedInsights.awakened_at && (
+                    <div className="text-xs text-gray-500 mb-3">
+                      {new Date(enhancedInsights.awakened_at).toLocaleString('en-US', {
+                        weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+                      })} 
+                      {enhancedInsights.sleep_duration_minutes && (
+                        <span> | Slept {Math.floor(enhancedInsights.sleep_duration_minutes / 60)}h {Math.round(enhancedInsights.sleep_duration_minutes % 60)}m</span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Likely Cause */}
+                  <div className="bg-[#FEF3C7] rounded-xl p-3 mb-3">
+                    <div className="text-xs font-medium text-[#92400E] mb-1">Likely Cause</div>
+                    <p className="text-sm text-[#78350F]">{enhancedInsights.insights.likely_cause}</p>
+                  </div>
+
+                  {/* Actionable Tips */}
+                  {enhancedInsights.insights.actionable_tips.length > 0 && (
+                    <div className="mb-3">
+                      <div className="text-xs font-medium text-[#2F8F8B] mb-2">Tips to Try</div>
+                      {enhancedInsights.insights.actionable_tips.map((tip, i) => (
+                        <div key={i} className="flex items-start gap-2 text-sm text-gray-700 mb-2 bg-gray-50 rounded-lg p-2">
+                          <span className="text-[#4ECDC4] font-bold">{i + 1}.</span>
+                          <span>{tip}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Environment & Age Context */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <div className="text-xs font-medium text-gray-500 mb-1">Environment</div>
+                      <p className="text-sm text-gray-700">{enhancedInsights.insights.environment_assessment}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <div className="text-xs font-medium text-gray-500 mb-1">Age Context</div>
+                      <p className="text-sm text-gray-700">{enhancedInsights.insights.age_context}</p>
+                    </div>
+                  </div>
+
+                  {/* Sleep Quality Note */}
+                  <div className="mt-3 text-xs text-gray-500 italic">
+                    {enhancedInsights.insights.sleep_quality_note}
+                  </div>
+                </div>
+              ) : insights?.insights ? (
+                <div className="bg-white/80 rounded-2xl p-4">
+                  <h4 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                    <span>💡</span> AI Analysis
+                  </h4>
+                  <p className="text-sm text-gray-700 leading-relaxed">{insights.insights}</p>
+                </div>
+              ) : null}
+
+              {/* AI Recommendations from Trends */}
+              {trends?.ai_insights?.recommendations && trends.ai_insights.recommendations.length > 0 && (
+                <div className="bg-gradient-to-r from-[#FEF3C7] to-[#FDE68A] rounded-2xl p-4">
+                  <h4 className="text-sm font-semibold text-[#92400E] mb-2 flex items-center gap-2">
+                    <span>🎯</span> Recommendations
+                  </h4>
+                  {trends.ai_insights.recommendations.map((rec, i) => (
+                    <div key={i} className="flex items-start gap-2 text-sm text-[#78350F] mb-2">
+                      <span>•</span>
+                      <span>{rec}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* No Data State */}
+              {!trends && !enhancedInsights && !insights && (
+                <div className="bg-white/80 rounded-2xl p-6 text-center">
+                  <p className="text-gray-500 text-sm">
+                    Keep tracking {babyName}&apos;s sleep to unlock AI-powered insights and recommendations!
                   </p>
-                )}
-              </div>
-            )}
+                </div>
+              )}
+            </div>
           </div>
 
           <style>{`
