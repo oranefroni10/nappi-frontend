@@ -7,6 +7,7 @@ import { fetchOptimalStats, fetchInsights, fetchAISummary, fetchSchedulePredicti
 import type { LastSleepSummary, RoomMetrics, OptimalStatsResponse, InsightsResponse, AISummaryResponse, SchedulePredictionResponse } from '../types/metrics';
 import type { AuthUser } from '../types/auth';
 import { useLayoutContext } from '../components/LayoutContext';
+import { getSession } from '../utils/session';
 
 // Helper function to calculate age from birthdate
 const calculateAge = (birthdate: string): string => {
@@ -77,8 +78,8 @@ const HomeDashboard: React.FC = () => {
   const [schedulePrediction, setSchedulePrediction] = useState<SchedulePredictionResponse | null>(null);
 
   useEffect(() => {
-    // Load user from localStorage
-    const stored = localStorage.getItem('nappi_user');
+    // Load user from session cookie
+    const stored = getSession();
     if (stored) {
       setUser(JSON.parse(stored));
     }
@@ -357,19 +358,6 @@ const HomeDashboard: React.FC = () => {
           <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-lg">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-[#000] m-0 font-kodchasan">Last Nap Info</h3>
-
-              <div className="flex items-center gap-3">
-                <button onClick={() => {
-                  const babyId = user?.baby_id || user?.baby?.id;
-                  if (babyId) loadData(babyId);
-                }} className="cursor-pointer">
-                  <img src="/refresh.svg" alt="refresh" className="w-6 h-6" />
-                </button>
-
-                <button onClick={() => navigate('/statistics')} className="text-[#4ECDC4] hover:text-[#3db8b0] transition-colors">
-                  <img src="/material-symbols-light-chart-data-outline.svg" alt="View data" className="w-7 h-7" />
-                </button>
-              </div>
             </div>
 
             <div className="rounded-2xl p-4">
@@ -382,17 +370,17 @@ const HomeDashboard: React.FC = () => {
                 <InfoRow
                   icon={<img src="/iconoir-temperature-low.svg" alt="Temp" className="w-5 h-5" />}
                   label="Average Temperature"
-                  value={`${roomMetrics?.temperature_c.toFixed(0) || '--'}°C`}
+                  value={sleepSummary?.avg_temperature != null ? `${sleepSummary.avg_temperature.toFixed(0)}°C` : '--'}
                 />
                 <InfoRow
                   icon={<img src="/cbi-moisture.svg" alt="Humidity" className="w-5 h-5" />}
                   label="Average Humidity"
-                  value={`${roomMetrics?.humidity_percent.toFixed(0) || '--'}%`}
+                  value={sleepSummary?.avg_humidity != null ? `${sleepSummary.avg_humidity.toFixed(0)}%` : '--'}
                 />
                 <InfoRow
                   icon={<img src="/sound-icon.svg" alt="Sound" className="w-5 h-5" />}
                   label="Max Noise Level"
-                  value={`${roomMetrics?.noise_db.toFixed(0) || '--'} dB`}
+                  value={sleepSummary?.max_noise != null ? `${sleepSummary.max_noise.toFixed(0)} dB` : '--'}
                 />
               </div>
             </div>
@@ -402,20 +390,17 @@ const HomeDashboard: React.FC = () => {
           <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-lg">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-[#E8F7F6] flex items-center justify-center">
+                <div className="px-3 h-12 rounded-xl bg-[#E8F7F6] flex items-center justify-center whitespace-nowrap">
                   {isSleeping ? (
-                    <span className="text-2xl">😴</span>
+                    <span className="text-xs font-semibold text-[#2F8F8B]">Sleeping</span>
                   ) : (
-                    <span className="text-2xl">👀</span>
+                    <span className="text-xs font-semibold text-[#2F8F8B]">Awake</span>
                   )}
                 </div>
                 <div>
                   <h3 className="text-base font-semibold text-[#000] m-0 font-[Kodchasan]">Sleep Status</h3>
                   <p className="text-sm text-gray-500 m-0">
                     {isSleeping ? 'Currently sleeping' : 'Currently awake'}
-                    {inCooldown && cooldownRemaining && (
-                      <span className="text-[#5DCCCC]"> · Override active ({cooldownRemaining}m)</span>
-                    )}
                   </p>
                 </div>
               </div>
@@ -435,7 +420,7 @@ const HomeDashboard: React.FC = () => {
             </div>
             {inCooldown && (
               <p className="text-xs text-gray-400 mt-3 m-0">
-                💡 Sensor detection is paused. Manual override is active.
+                Sensor detection is paused. Manual override is active.
               </p>
             )}
           </div>
@@ -484,13 +469,13 @@ const HomeDashboard: React.FC = () => {
                   animation: 'fadeIn 0.3s ease-out',
                 }}
               >
-                <p className="text-sm text-gray-700 m-0 leading-relaxed">💡 {getMetricInfo(openMetric)}</p>
+                <p className="text-sm text-gray-700 m-0 leading-relaxed">{getMetricInfo(openMetric)}</p>
               </div>
             )}
           </div>
 
           {/* Room Status */}
-          {roomMetrics && (
+          {roomMetrics && (roomMetrics.temperature_c != null || roomMetrics.humidity_percent != null || roomMetrics.noise_db != null) && (
             <div className="">
               <h3 className="text-lg font-semibold text-[#000] mb-4 font-kodchasan">Room Status</h3>
 
@@ -498,27 +483,29 @@ const HomeDashboard: React.FC = () => {
                 <StatusCard
                   icon={<img src="/temp-icon.svg" alt="Temp" className="w-[38px]" />}
                   label="Temperature"
-                  value={`${roomMetrics.temperature_c.toFixed(1)}°C`}
+                  value={roomMetrics.temperature_c != null ? `${roomMetrics.temperature_c.toFixed(1)}°C` : '--'}
                   color="#FF6B6B"
-                  status={roomMetrics.temperature_c > 26 ? 'high' : roomMetrics.temperature_c < 18 ? 'low' : 'normal'}
+                  status={roomMetrics.temperature_c != null ? (roomMetrics.temperature_c > 26 ? 'high' : roomMetrics.temperature_c < 18 ? 'low' : 'normal') : 'normal'}
                 />
                 <StatusCard
                   icon={<img src="/cbi-moisture1.svg" alt="Humidity" className="w-[38px]" />}
                   label="Humidity"
-                  value={`${roomMetrics.humidity_percent.toFixed(0)}%`}
+                  value={roomMetrics.humidity_percent != null ? `${roomMetrics.humidity_percent.toFixed(0)}%` : '--'}
                   color="#4ECDC4"
                   status="normal"
                 />
                 <StatusCard
                   icon={<img src="/sound-icon1.svg" alt="Noise" className="w-[38px]" />}
                   label="Noise"
-                  value={`${roomMetrics.noise_db.toFixed(0)} dB`}
+                  value={roomMetrics.noise_db != null ? `${roomMetrics.noise_db.toFixed(0)} dB` : '--'}
                   color="#95E1D3"
-                  status={roomMetrics.noise_db > 50 ? 'high' : 'normal'}
+                  status={roomMetrics.noise_db != null && roomMetrics.noise_db > 50 ? 'high' : 'normal'}
                 />
               </div>
 
-              <p className="text-xs text-gray-400 mt-4 text-center m-0">Last updated: {new Date(roomMetrics.measured_at).toLocaleTimeString()}</p>
+              {roomMetrics.measured_at && (
+                <p className="text-xs text-gray-400 mt-4 text-center m-0">Last updated: {new Date(roomMetrics.measured_at).toLocaleTimeString()}</p>
+              )}
             </div>
           )}
 
@@ -526,7 +513,6 @@ const HomeDashboard: React.FC = () => {
           <div className="bg-gradient-to-br from-[#E8F7F6] to-[#D5F0EF] rounded-3xl p-5 shadow-lg">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-[#2F8F8B] font-kodchasan flex items-center gap-2">
-                <span className="text-xl">🤖</span>
                 Nappi AI Insights
               </h3>
               {aiSummaryLoading && (
@@ -539,7 +525,6 @@ const HomeDashboard: React.FC = () => {
                 {/* Sleep Quality Summary */}
                 <div className="bg-white/80 rounded-2xl p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-lg">😴</span>
                     <span className="font-medium text-gray-800">Sleep Summary</span>
                   </div>
                   <p className="text-sm text-gray-700">{aiSummary.sleep_summary.message}</p>
@@ -571,7 +556,6 @@ const HomeDashboard: React.FC = () => {
                     : 'bg-white/80'
                 }`}>
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-lg">🏠</span>
                     <span className="font-medium text-gray-800">Room Environment</span>
                     {aiSummary.environment.status === 'optimal' && (
                       <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Optimal</span>
@@ -587,7 +571,6 @@ const HomeDashboard: React.FC = () => {
                 {aiSummary.next_sleep_prediction && (
                   <div className="bg-white/80 rounded-2xl p-4">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-lg">⏰</span>
                       <span className="font-medium text-gray-800">Next Sleep</span>
                     </div>
                     <p className="text-sm text-gray-700">
@@ -605,7 +588,6 @@ const HomeDashboard: React.FC = () => {
                 {/* Today's Tip */}
                 <div className="bg-[#FEF3C7] rounded-2xl p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-lg">💡</span>
                     <span className="font-medium text-[#92400E]">Today's Tip</span>
                   </div>
                   <p className="text-sm text-[#78350F]">{aiSummary.todays_tip}</p>
@@ -734,7 +716,7 @@ const StatusCard: React.FC<{
     <div className="text-xs text-gray-600 mb-1">{label}</div>
     <div className="text-xl font-bold text-gray-800">{value}</div>
     {status !== 'normal' && (
-      <div className={`text-xs font-medium mt-1 ${status === 'high' ? 'text-red-600' : 'text-blue-600'}`}>{status === 'high' ? '⚠️ Too high' : '❄️ Too low'}</div>
+      <div className={`text-xs font-medium mt-1 ${status === 'high' ? 'text-red-600' : 'text-blue-600'}`}>{status === 'high' ? 'Too high' : 'Too low'}</div>
     )}
   </div>
 );

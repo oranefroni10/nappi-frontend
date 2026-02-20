@@ -1,12 +1,13 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
+import { getSession, removeSession } from '../utils/session';
 
 interface Props {
   children: React.ReactNode;
 }
 
 const ProtectedRoute: React.FC<Props> = ({ children }) => {
-  const stored = localStorage.getItem('nappi_user');
+  const stored = getSession();
   
   if (!stored) {
     // Not logged in - redirect to welcome
@@ -21,8 +22,8 @@ const ProtectedRoute: React.FC<Props> = ({ children }) => {
       return <Navigate to="/onboarding" replace />;
     }
   } catch {
-    // Invalid data in localStorage - redirect to welcome
-    localStorage.removeItem('nappi_user');
+    // Invalid data in session - redirect to welcome
+    removeSession();
     return <Navigate to="/welcome" replace />;
   }
 

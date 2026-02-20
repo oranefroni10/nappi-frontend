@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api/auth';
 import type { AuthUser } from '../types/auth';
+import { getSession, setSession } from '../utils/session';
 
 const Onboarding: React.FC = () => {
   console.log('New Onboarding UI rendering');  // Debug: Confirm new code runs
@@ -17,7 +18,7 @@ const Onboarding: React.FC = () => {
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
-    const stored = localStorage.getItem('nappi_user');
+    const stored = getSession();
     if (!stored) {
       navigate('/login');
       return;
@@ -41,7 +42,7 @@ const Onboarding: React.FC = () => {
         notes: notes || undefined,
       });
 
-      localStorage.setItem('nappi_user', JSON.stringify({
+      setSession(JSON.stringify({
         user_id: data.user_id,
         username: data.username,
         first_name: user.first_name,  // preserve from existing user
@@ -94,8 +95,8 @@ const Onboarding: React.FC = () => {
             animation: 'fadeIn 0.6s ease-in backwards'
           }}
         >
-          <div className="w-[100px] h-[100px] mx-auto mb-5 rounded-full bg-gradient-to-br from-[#B4E7E5] to-[#7DD3C8] flex items-center justify-center text-5xl shadow-lg">
-            👶
+          <div className="w-[100px] h-[100px] mx-auto mb-5 rounded-full bg-gradient-to-br from-[#B4E7E5] to-[#7DD3C8] flex items-center justify-center shadow-lg">
+            <img src="/logo.svg" alt="Nappi" className="w-14 h-14" />
           </div>
           <h2 className="text-3xl font-bold text-[#000] mb-2">
             Almost there!
@@ -156,8 +157,8 @@ const Onboarding: React.FC = () => {
                 className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-50 text-base outline-none transition-all duration-200 focus:border-[#7DD3C8] focus:shadow-[0_0_0_3px_rgba(125,211,200,0.2)] focus:bg-white cursor-pointer"
               >
                 <option value="">Prefer not to say</option>
-                <option value="male">Boy 👦</option>
-                <option value="female">Girl 👧</option>
+                <option value="male">Boy</option>
+                <option value="female">Girl</option>
               </select>
             </div>
 
@@ -187,7 +188,7 @@ const Onboarding: React.FC = () => {
                   : 'bg-gradient-to-r from-[#7DD3C8] to-[#5BC4B6] hover:from-[#6BC7BD] hover:to-[#4AB3A5] text-white shadow-md hover:shadow-lg active:scale-[0.98]'
               }`}
             >
-              {loading ? 'Setting up...' : 'Start Monitoring 🚀'}
+              {loading ? 'Setting up...' : 'Start Monitoring'}
             </button>
           </form>
 

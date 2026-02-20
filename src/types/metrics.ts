@@ -1,11 +1,3 @@
-export type SleepStage = 'light' | 'deep' | 'rem' | string;
-
-export interface SleepStageMetric {
-  stage: SleepStage;
-  start_time: string;
-  end_time: string;
-}
-
 export interface LastSleepSummary {
   baby_name: string;
   started_at: string;
@@ -13,15 +5,16 @@ export interface LastSleepSummary {
   total_sleep_minutes: number;
   awakenings_count: number;
   sleep_quality_score: number;
-  stages: SleepStageMetric[];
+  avg_temperature?: number | null;
+  avg_humidity?: number | null;
+  max_noise?: number | null;
 }
 
 export interface RoomMetrics {
-  temperature_c: number;
-  humidity_percent: number;
-  noise_db: number;
-  light_lux: number;
-  measured_at: string;
+  temperature_c?: number | null;
+  humidity_percent?: number | null;
+  noise_db?: number | null;
+  measured_at?: string | null;
   notes?: string | null;
 }
 
