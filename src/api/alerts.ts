@@ -1,4 +1,5 @@
 import { api } from './client';
+import { ALERTS_PAGE_SIZE } from '../constants';
 
 // ============================================
 // Types
@@ -86,7 +87,7 @@ export async function fetchAlerts(
     unreadOnly?: boolean;
   } = {}
 ): Promise<AlertListResponse> {
-  const { limit = 50, offset = 0, unreadOnly = false } = options;
+  const { limit = ALERTS_PAGE_SIZE, offset = 0, unreadOnly = false } = options;
   const res = await api.get<AlertListResponse>('/alerts/history', {
     params: {
       user_id: userId,
@@ -226,5 +227,6 @@ export async function unsubscribeFromPush(userId: number): Promise<boolean> {
  * Get the SSE stream URL for a user
  */
 export function getAlertsStreamUrl(userId: number): string {
-  return `http://localhost:8000/alerts/stream?user_id=${userId}`;
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  return `${baseUrl}/alerts/stream?user_id=${userId}`;
 }

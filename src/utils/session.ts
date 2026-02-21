@@ -1,4 +1,6 @@
-const COOKIE_NAME = 'nappi_user';
+import { SESSION_COOKIE_NAME } from '../constants';
+
+const COOKIE_NAME = SESSION_COOKIE_NAME;
 
 export function getSession(): string | null {
   const match = document.cookie.match(new RegExp(`(?:^|; )${COOKIE_NAME}=([^;]*)`));

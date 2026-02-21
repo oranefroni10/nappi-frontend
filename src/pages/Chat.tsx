@@ -4,6 +4,7 @@ import { useLayoutContext } from '../components/LayoutContext';
 import { sendChatMessage, type ChatMessage } from '../api/chat';
 import type { AuthUser } from '../types/auth';
 import { getSession } from '../utils/session';
+import { CHAT_MAX_HISTORY_MESSAGES } from '../constants';
 
 const Chat: React.FC = () => {
   const navigate = useNavigate();
@@ -50,8 +51,8 @@ const Chat: React.FC = () => {
     setLoading(true);
 
     try {
-      // Get last 10 messages for context
-      const history = [...messages, userMessage].slice(-10);
+      // Get last N messages for context
+      const history = [...messages, userMessage].slice(-CHAT_MAX_HISTORY_MESSAGES);
       
       const response = await sendChatMessage({
         baby_id: user.baby_id,

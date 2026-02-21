@@ -55,6 +55,7 @@ export interface DailySleepPoint {
   date: string;
   total_hours: number;
   sessions_count: number;
+  awakenings_count: number;
 }
 
 export interface DailySleepResponse {
@@ -189,7 +190,6 @@ export interface SchedulePredictionResponse {
 
 export interface SleepQualitySummary {
   last_sleep_hours: number | null;
-  last_sleep_quality: 'good' | 'fair' | 'poor' | null;
   trend_direction: 'improving' | 'stable' | 'declining' | null;
   message: string;
 }
