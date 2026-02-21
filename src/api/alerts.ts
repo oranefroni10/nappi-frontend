@@ -128,6 +128,17 @@ export async function markAllAlertsAsRead(userId: number): Promise<number> {
   return res.data.updated_count;
 }
 
+/**
+ * Delete alerts by IDs
+ */
+export async function deleteAlerts(alertIds: number[], userId: number): Promise<number> {
+  const res = await api.delete<{ deleted_count: number }>('/alerts', {
+    data: { alert_ids: alertIds },
+    params: { user_id: userId },
+  });
+  return res.data.deleted_count;
+}
+
 // ============================================
 // Intervention API Functions
 // ============================================

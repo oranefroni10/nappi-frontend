@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLayoutContext } from '../components/LayoutContext';
 import { sendChatMessage, type ChatMessage } from '../api/chat';
 import type { AuthUser } from '../types/auth';
+import { getSession } from '../utils/session';
 
 const Chat: React.FC = () => {
   const navigate = useNavigate();
@@ -16,7 +17,7 @@ const Chat: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem('nappi_user');
+    const stored = getSession();
     if (!stored) {
       navigate('/login');
       return;
@@ -79,12 +80,63 @@ const Chat: React.FC = () => {
     }
   };
 
+  // Simple markdown renderer for AI responses
+  const renderMarkdown = (text: string) => {
+    // Split into lines for processing
+    const lines = text.split('\n');
+    const elements: React.ReactNode[] = [];
+    let key = 0;
+
+    const formatInline = (line: string): React.ReactNode[] => {
+      const parts: React.ReactNode[] = [];
+      // Match **bold** and *italic* patterns
+      const regex = /\*\*(.+?)\*\*|\*(.+?)\*/g;
+      let lastIndex = 0;
+      let match;
+
+      while ((match = regex.exec(line)) !== null) {
+        // Text before match
+        if (match.index > lastIndex) {
+          parts.push(line.slice(lastIndex, match.index));
+        }
+        if (match[1]) {
+          // **bold**
+          parts.push(<strong key={`b${match.index}`}>{match[1]}</strong>);
+        } else if (match[2]) {
+          // *italic*
+          parts.push(<em key={`i${match.index}`}>{match[2]}</em>);
+        }
+        lastIndex = regex.lastIndex;
+      }
+      // Remaining text
+      if (lastIndex < line.length) {
+        parts.push(line.slice(lastIndex));
+      }
+      return parts.length > 0 ? parts : [line];
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.trim() === '') {
+        elements.push(<br key={key++} />);
+      } else {
+        elements.push(
+          <span key={key++}>
+            {formatInline(line)}
+            {i < lines.length - 1 && lines[i + 1]?.trim() !== '' && <br />}
+          </span>
+        );
+      }
+    }
+    return elements;
+  };
+
   const babyName = user?.baby?.first_name || 'your baby';
 
   return (
-    <>
-      {/* Header Section */}
-      <section className="pt-6 px-5 pb-4 relative z-10">
+    <div className="flex flex-col h-[calc(100vh-2rem)] md:h-[calc(100vh-4rem)]">
+      {/* Header Section - fixed at top */}
+      <section className="pt-6 px-5 pb-4 relative z-10 flex-shrink-0">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <div
@@ -113,12 +165,11 @@ const Chat: React.FC = () => {
         </p>
       </section>
 
-      {/* Chat Messages */}
-      <section className="flex-1 px-5 pb-4 overflow-y-auto relative z-10">
-        <div className="flex flex-col gap-4 max-w-2xl mx-auto">
+      {/* Chat Messages - scrollable area */}
+      <section className="flex-1 px-5 pb-4 overflow-y-auto relative z-10 min-h-0">
+        <div className="flex flex-col gap-4 max-w-2xl mx-auto h-full">
           {messages.length === 0 && (
-            <div className="text-center py-12">
-              <div className="text-5xl mb-4">💬</div>
+            <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
               <h3 className="text-lg font-medium text-gray-700 mb-2">
                 Start a conversation
               </h3>
@@ -158,9 +209,9 @@ const Chat: React.FC = () => {
                     : 'bg-white shadow-sm border border-gray-100 rounded-bl-md'
                 }`}
               >
-                <p className="m-0 text-sm whitespace-pre-wrap leading-relaxed">
-                  {message.content}
-                </p>
+                <div className="m-0 text-sm leading-relaxed">
+                  {message.role === 'assistant' ? renderMarkdown(message.content) : message.content}
+                </div>
               </div>
             </div>
           ))}
@@ -188,7 +239,7 @@ const Chat: React.FC = () => {
       </section>
 
       {/* Input Section */}
-      <section className="px-5 pb-6 pt-2 relative z-10 bg-gradient-to-t from-white via-white to-transparent">
+      <section className="px-5 pb-6 pt-2 relative z-10 flex-shrink-0">
         <div className="max-w-2xl mx-auto">
           <div className="flex gap-3 items-end">
             <div className="flex-1 relative">
@@ -232,7 +283,7 @@ const Chat: React.FC = () => {
           </p>
         </div>
       </section>
-    </>
+    </div>
   );
 };
 
