@@ -226,5 +226,6 @@ export async function unsubscribeFromPush(userId: number): Promise<boolean> {
  * Get the SSE stream URL for a user
  */
 export function getAlertsStreamUrl(userId: number): string {
-  return `http://localhost:8000/alerts/stream?user_id=${userId}`;
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  return `${baseUrl}/alerts/stream?user_id=${userId}`;
 }
