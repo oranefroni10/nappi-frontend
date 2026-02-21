@@ -550,7 +550,7 @@ const Statistics: React.FC = () => {
         },
         radiusAxis: { type: 'category', data: ['Sleep'], show: false },
         polar: { radius: '75%' },
-        series: segments.map((seg, i) => ({
+        series: (segments.map((seg, i) => ({
           type: 'bar',
           coordinateSystem: 'polar',
           stack: `seg-${i}`,
@@ -563,7 +563,7 @@ const Statistics: React.FC = () => {
           silent: true,
           tooltip: { show: false },
           z: 1,
-        })).concat(segments.map((seg, i) => ({
+        })) as any[]).concat(segments.map((seg, i) => ({
           type: 'bar',
           coordinateSystem: 'polar',
           stack: `seg-${i}`,
