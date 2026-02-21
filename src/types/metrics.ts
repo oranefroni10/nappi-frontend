@@ -4,7 +4,6 @@ export interface LastSleepSummary {
   ended_at: string;
   total_sleep_minutes: number;
   awakenings_count: number;
-  sleep_quality_score: number;
   avg_temperature?: number | null;
   avg_humidity?: number | null;
   max_noise?: number | null;

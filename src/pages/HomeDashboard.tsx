@@ -234,19 +234,19 @@ const HomeDashboard: React.FC = () => {
     switch (metric) {
       case 'temp':
         if (hasOptimalData && optimalStats?.temperature !== null) {
-          return `Most of ${babyName}'s longest naps happened at around ${optimalStats.temperature.toFixed(0)}°C. Try keeping the room at this temperature for better sleep.`;
+          return `Most of ${babyName}'s longest naps happened at around ${optimalStats?.temperature.toFixed(0)}°C. Try keeping the room at this temperature for better sleep.`;
         }
         return `We're still learning ${babyName}'s preferences. Keep tracking sleep to see optimal temperature recommendations!`;
       case 'soon':
         return `Exciting updates are on the way! The next version of Nappi will feature new advanced sensors, giving you even deeper insights in ${babyName}'s sleep environment.`;
       case 'humidity':
         if (hasOptimalData && optimalStats?.humidity !== null) {
-          return `${babyName} sleeps best at around ${optimalStats.humidity.toFixed(0)}% humidity. Consider using a humidifier to maintain this level.`;
+          return `${babyName} sleeps best at around ${optimalStats?.humidity.toFixed(0)}% humidity. Consider using a humidifier to maintain this level.`;
         }
         return `We're still learning ${babyName}'s preferences. Keep tracking sleep to see optimal humidity recommendations!`;
       case 'noise':
         if (hasOptimalData && optimalStats?.noise !== null) {
-          return `${babyName} sleeps best with noise levels around ${optimalStats.noise.toFixed(0)} dB. White noise machines can help maintain consistent levels.`;
+          return `${babyName} sleeps best with noise levels around ${optimalStats?.noise.toFixed(0)} dB. White noise machines can help maintain consistent levels.`;
         }
         return `We're still learning ${babyName}'s preferences. Keep tracking sleep to see optimal noise level recommendations!`;
       default:
@@ -503,8 +503,11 @@ const HomeDashboard: React.FC = () => {
                 />
               </div>
 
+              {roomMetrics.notes && (
+                <p className="text-xs text-amber-500 mt-3 text-center m-0">{roomMetrics.notes}</p>
+              )}
               {roomMetrics.measured_at && (
-                <p className="text-xs text-gray-400 mt-4 text-center m-0">Last updated: {new Date(roomMetrics.measured_at).toLocaleTimeString()}</p>
+                <p className="text-xs text-gray-400 mt-1 text-center m-0">Last updated: {new Date(roomMetrics.measured_at).toLocaleTimeString()}</p>
               )}
             </div>
           )}
@@ -611,11 +614,6 @@ const HomeDashboard: React.FC = () => {
                 <p className="text-sm text-gray-700 leading-relaxed">
                   {insights?.insights ? (
                     insights.insights
-                  ) : sleepSummary && sleepSummary.sleep_quality_score < 80 ? (
-                    <>
-                      {babyName}&apos;s last nap quality was <strong>{sleepSummary.sleep_quality_score}/100</strong>. Try adjusting the room temperature or reducing
-                      noise levels for better sleep.
-                    </>
                   ) : (
                     <>
                       Keep tracking {babyName}&apos;s sleep to receive personalized AI-powered recommendations!
