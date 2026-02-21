@@ -3,7 +3,6 @@ export interface Baby {
   first_name: string;
   last_name: string;
   birthdate: string;
-  notes?: string;  // Parent notes: allergies, conditions, health info
 }
 
 export interface AuthUser {
@@ -55,7 +54,6 @@ export interface RegisterBabyRequest {
   first_name: string;
   birthdate: string;
   gender?: string;
-  notes?: string;  // Parent notes: allergies, conditions, health info
 }
 
 export interface changePasswordRequest {

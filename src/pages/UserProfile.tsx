@@ -4,6 +4,7 @@ import { authApi, babiesApi } from '../api/auth';
 import { useLayoutContext } from '../components/LayoutContext';
 import { fetchVapidKey, fetchPushStatus, subscribeToPush, unsubscribeFromPush } from '../api/alerts';
 import { getSession } from '../utils/session';
+import { NOTE_TITLE_MAX_LENGTH, PASSWORD_SUCCESS_TIMEOUT_MS } from '../constants';
 
 // Helper function to convert VAPID key to Uint8Array
 const urlBase64ToUint8Array = (base64String: string): Uint8Array<ArrayBuffer> => {
@@ -286,7 +287,7 @@ const UserProfile: React.FC = () => {
         setTimeout(() => {
           setIsChangePasswordOpen(false);
           setSuccess(null);
-        }, 2000);
+        }, PASSWORD_SUCCESS_TIMEOUT_MS);
       } else {
         setError('Failed to update password.');
       }
@@ -444,7 +445,7 @@ const UserProfile: React.FC = () => {
                     placeholder="Title (e.g., Allergies, Health Conditions)"
                     value={noteTitle}
                     onChange={(e) => setNoteTitle(e.target.value)}
-                    maxLength={200}
+                    maxLength={NOTE_TITLE_MAX_LENGTH}
                     className="w-full px-4 py-2.5 rounded-xl text-sm border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-[#4ECDC4]/50 transition-all placeholder:text-gray-400 mb-3"
                   />
                   

@@ -5,6 +5,7 @@ import type { SensorDataPoint, DailySleepPoint, SleepPattern, InsightsResponse, 
 import { useLayoutContext } from '../components/LayoutContext';
 import { getSession } from '../utils/session';
 import { fetchSensorStats, fetchDailySleep, fetchSleepPatterns, fetchInsights, fetchTrends, fetchEnhancedInsights } from '../api/stats';
+import { STATS_MAX_RANGE_DAYS, SENSOR_DEFAULT_RANGE_DAYS, AWAKENING_DEFAULT_RANGE_DAYS, SLEEP_EXCELLENT_THRESHOLD_HOURS, SLEEP_GOOD_THRESHOLD_HOURS, SLEEP_CHART_Y_MAX_HOURS } from '../constants';
 
 interface LocalSleepPattern {
   label: string;
@@ -20,17 +21,17 @@ const Statistics: React.FC = () => {
   // Sensor graph state
   const [selectedSensor, setSelectedSensor] = useState<'temperature' | 'humidity' | 'noise'>('temperature');
   const [sensorDateRange, setSensorDateRange] = useState({
-    start: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    start: new Date(Date.now() - SENSOR_DEFAULT_RANGE_DAYS * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0],
   });
 
   // Sleep duration graph state
   const [sleepDateRange, setSleepDateRange] = useState({
-    start: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    start: new Date(Date.now() - SENSOR_DEFAULT_RANGE_DAYS * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0],
   });
 
-  const MAX_RANGE_DAYS = 90;
+  const MAX_RANGE_DAYS = STATS_MAX_RANGE_DAYS;
   const today = new Date().toISOString().split('T')[0];
 
   const clampDateRange = (
@@ -58,19 +59,33 @@ const Statistics: React.FC = () => {
     return { start, end };
   };
 
+  // Sessions vs Awakenings date range (independent)
+  const [awakeningsDateRange, setAwakeningsDateRange] = useState({
+    start: new Date(Date.now() - AWAKENING_DEFAULT_RANGE_DAYS * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    end: new Date().toISOString().split('T')[0],
+  });
+
+  // Sleep patterns month picker (YYYY-MM format for input[type=month])
+  const [patternsMonthValue, setPatternsMonthValue] = useState(
+    `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
+  );
+
   // API data states
   const [sensorData, setSensorData] = useState<SensorDataPoint[]>([]);
   const [sleepDurationData, setSleepDurationData] = useState<DailySleepPoint[]>([]);
+  const [awakeningsData, setAwakeningsData] = useState<DailySleepPoint[]>([]);
   const [sleepPatterns, setSleepPatterns] = useState<LocalSleepPattern[]>([]);
 
   // Loading states
   const [sensorLoading, setSensorLoading] = useState(false);
   const [sleepLoading, setSleepLoading] = useState(false);
+  const [awakeningsLoading, setAwakeningsLoading] = useState(false);
   const [patternsLoading, setPatternsLoading] = useState(false);
 
   // Error states
   const [sensorError, setSensorError] = useState<string | null>(null);
   const [sleepError, setSleepError] = useState<string | null>(null);
+  const [awakeningsError, setAwakeningsError] = useState<string | null>(null);
   const [patternsError, setPatternsError] = useState<string | null>(null);
 
   // AI Insights state
@@ -156,7 +171,31 @@ const Statistics: React.FC = () => {
     }
   }, [babyId, sleepDateRange.start, sleepDateRange.end]);
 
-  // Fetch sleep patterns for current month
+  // Fetch sessions vs awakenings data (independent date range)
+  const loadAwakeningsData = useCallback(async () => {
+    if (!babyId) return;
+
+    setAwakeningsLoading(true);
+    setAwakeningsError(null);
+
+    try {
+      const response = await fetchDailySleep(
+        babyId,
+        awakeningsDateRange.start,
+        awakeningsDateRange.end
+      );
+      setAwakeningsData(response.data);
+    } catch (err: any) {
+      console.error('Failed to fetch awakenings data:', err);
+      const message = err.response?.data?.detail || 'Failed to load awakenings data';
+      setAwakeningsError(typeof message === 'string' ? message : 'Failed to load awakenings data');
+      setAwakeningsData([]);
+    } finally {
+      setAwakeningsLoading(false);
+    }
+  }, [babyId, awakeningsDateRange.start, awakeningsDateRange.end]);
+
+  // Fetch sleep patterns for selected month
   const loadPatternsData = useCallback(async () => {
     if (!babyId) return;
 
@@ -164,8 +203,8 @@ const Statistics: React.FC = () => {
     setPatternsError(null);
 
     try {
-      const now = new Date();
-      const response = await fetchSleepPatterns(babyId, now.getMonth() + 1, now.getFullYear());
+      const [yearStr, monthStr] = patternsMonthValue.split('-');
+      const response = await fetchSleepPatterns(babyId, Number(monthStr), Number(yearStr));
 
       // Transform API patterns to local format for the chart
       const transformed: LocalSleepPattern[] = response.patterns.map((p: SleepPattern) => {
@@ -194,7 +233,7 @@ const Statistics: React.FC = () => {
     } finally {
       setPatternsLoading(false);
     }
-  }, [babyId]);
+  }, [babyId, patternsMonthValue]);
 
   // Fetch AI insights
   const loadInsights = useCallback(async () => {
@@ -260,6 +299,12 @@ const Statistics: React.FC = () => {
       loadSleepData();
     }
   }, [babyId, loadSleepData]);
+
+  useEffect(() => {
+    if (babyId) {
+      loadAwakeningsData();
+    }
+  }, [babyId, loadAwakeningsData]);
 
   useEffect(() => {
     if (babyId) {
@@ -358,7 +403,7 @@ const Statistics: React.FC = () => {
       },
       grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
       xAxis: { type: 'category', data: sleepDurationData.map((d) => d.date), axisTick: { alignWithLabel: true } },
-      yAxis: { type: 'value', name: 'Hours', min: 0, max: 15 },
+      yAxis: { type: 'value', name: 'Hours', min: 0, max: SLEEP_CHART_Y_MAX_HOURS },
       series: [
         {
           name: 'Sleep Duration',
@@ -366,13 +411,57 @@ const Statistics: React.FC = () => {
           barWidth: '60%',
           data: sleepDurationData.map((d) => ({
             value: d.total_hours,
-            itemStyle: { color: d.total_hours >= 12 ? '#10B981' : d.total_hours >= 10 ? '#6366F1' : '#F59E0B' },
+            itemStyle: { color: d.total_hours >= SLEEP_EXCELLENT_THRESHOLD_HOURS ? '#10B981' : d.total_hours >= SLEEP_GOOD_THRESHOLD_HOURS ? '#6366F1' : '#F59E0B' },
           })),
           label: { show: false },
         },
       ],
     }),
     [sleepDurationData]
+  );
+
+  // Awakenings per session trend chart options (single line — lower = better)
+  const sessionsVsAwakeningsOptions = useMemo(
+    () => ({
+      tooltip: {
+        trigger: 'axis',
+        formatter: (params: any) => {
+          const point = params[0];
+          const data = awakeningsData[point.dataIndex];
+          const ratio = point.value;
+          return `${point.name}<br/>Awakenings per session: ${ratio}<br/>Sessions: ${data?.sessions_count || 0}<br/>Awakenings: ${data?.awakenings_count || 0}`;
+        },
+      },
+      grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
+      xAxis: { type: 'category', data: awakeningsData.map((d) => d.date), boundaryGap: false },
+      yAxis: {
+        type: 'value',
+        name: 'Per session',
+        min: 0,
+      },
+      series: [
+        {
+          name: 'Awakenings per Session',
+          type: 'line',
+          smooth: true,
+          data: awakeningsData.map((d) =>
+            d.sessions_count > 0 ? Math.round((d.awakenings_count / d.sessions_count) * 10) / 10 : 0
+          ),
+          lineStyle: { width: 3, color: '#F59E0B' },
+          areaStyle: {
+            color: {
+              type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+              colorStops: [
+                { offset: 0, color: 'rgba(245, 158, 11, 0.3)' },
+                { offset: 1, color: 'rgba(245, 158, 11, 0.05)' },
+              ],
+            },
+          },
+          itemStyle: { color: '#F59E0B' },
+        },
+      ],
+    }),
+    [awakeningsData]
   );
 
   // Process sleep patterns for polar chart
@@ -411,81 +500,86 @@ const Statistics: React.FC = () => {
     });
   }, [sleepPatterns]);
 
-  // Sleep patterns chart options
+  // Sleep patterns chart options — uses custom series (canvas drawing) for precise hover detection
   const sleepPatternsOptions = useMemo(
-    () => ({
-      tooltip: {
-        trigger: 'item',
-        formatter: (params: any) => {
-          const pattern = params.data.customData;
-          if (!pattern) return '';
+    () => {
+      const formatTime = (hour: number) => {
+        const h = Math.floor(hour) % 24;
+        const m = Math.round((hour % 1) * 60);
+        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+      };
 
-          const formatTime = (hour: number) => {
-            const h = Math.floor(hour) % 24;
-            const m = Math.round((hour % 1) * 60);
-            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-          };
+      const getColor = (label: string) => {
+        if (label.toLowerCase().includes('morning')) return '#FCD34D';
+        if (label.toLowerCase().includes('afternoon')) return '#60A5FA';
+        return '#818CF8';
+      };
 
-          const originalPattern = sleepPatterns.find((p) => p.label === pattern.parentLabel);
-          if (!originalPattern) return '';
+      // Build data items: each segment is one arc on the polar chart
+      const segments = processedSleepPatterns.map((pattern) => {
+        const originalPattern = sleepPatterns.find((p) => p.label === pattern.parentLabel);
+        return {
+          start: pattern.start,
+          end: pattern.start + pattern.duration,
+          color: getColor(pattern.label),
+          pattern,
+          originalPattern,
+        };
+      });
 
-          return `
-          <b>${originalPattern.label}</b><br/>
-          ${formatTime(originalPattern.start)} - ${formatTime(originalPattern.end > 24 ? originalPattern.end - 24 : originalPattern.end)}<br/>
-          Duration: ${originalPattern.duration.toFixed(1)}h
-        `;
-        },
-      },
-      radiusAxis: {
-        type: 'category',
-        data: ['Sleep'],
-        show: false,
-      },
-      angleAxis: {
-        type: 'value',
-        min: 0,
-        max: 24,
-        startAngle: 90,
-        clockwise: true,
-        splitLine: { show: true, lineStyle: { color: '#E5E7EB', type: 'dashed' } },
-        axisLabel: {
-          formatter: (value: number) => ([0, 6, 12, 18].includes(value) ? `${value.toString().padStart(2, '0')}:00` : ''),
-        },
-      },
-      polar: { radius: '75%' },
-      series: processedSleepPatterns.flatMap((pattern) => {
-        const stackId = `stack-${pattern.parentLabel}`;
-
-        let color = '#818CF8';
-        if (pattern.label.toLowerCase().includes('morning')) color = '#FCD34D';
-        if (pattern.label.toLowerCase().includes('afternoon')) color = '#60A5FA';
-
-        return [
-          {
-            type: 'bar',
-            coordinateSystem: 'polar',
-            stack: stackId,
-            barGap: '-100%',
-            tooltip: { show: false },
-            itemStyle: { color: 'transparent', borderColor: 'transparent' },
-            data: [{ value: [0, pattern.start], customData: pattern }],
-            z: 1,
+      return {
+        tooltip: {
+          trigger: 'item',
+          formatter: (params: any) => {
+            const seg = params.data;
+            if (!seg?.originalPattern) return '';
+            const op = seg.originalPattern;
+            return `<b>${op.label}</b><br/>${formatTime(op.start)} - ${formatTime(op.end > 24 ? op.end - 24 : op.end)}<br/>Duration: ${op.duration.toFixed(1)}h`;
           },
-          {
-            type: 'bar',
-            coordinateSystem: 'polar',
-            stack: stackId,
-            barGap: '-100%',
-            barCategoryGap: '0%',
-            roundCap: false,
-            barWidth: 30,
-            data: [{ value: [0, pattern.duration], customData: pattern }],
-            itemStyle: { color, shadowColor: 'rgba(0,0,0,0.12)', shadowOffsetY: 2 },
-            z: 2,
+        },
+        angleAxis: {
+          type: 'value',
+          min: 0,
+          max: 24,
+          startAngle: 90,
+          clockwise: true,
+          splitLine: { show: true, lineStyle: { color: '#E5E7EB', type: 'dashed' } },
+          axisLabel: {
+            formatter: (value: number) => ([0, 6, 12, 18].includes(value) ? `${value.toString().padStart(2, '0')}:00` : ''),
           },
-        ];
-      }),
-    }),
+        },
+        radiusAxis: { type: 'category', data: ['Sleep'], show: false },
+        polar: { radius: '75%' },
+        series: segments.map((seg, i) => ({
+          type: 'bar',
+          coordinateSystem: 'polar',
+          stack: `seg-${i}`,
+          barGap: '-100%',
+          barWidth: 30,
+          data: [
+            // Transparent spacer
+            { value: [0, seg.start], itemStyle: { color: 'transparent', borderColor: 'transparent' } },
+          ],
+          silent: true,
+          tooltip: { show: false },
+          z: 1,
+        })).concat(segments.map((seg, i) => ({
+          type: 'bar',
+          coordinateSystem: 'polar',
+          stack: `seg-${i}`,
+          barGap: '-100%',
+          barWidth: 30,
+          data: [
+            {
+              value: [0, seg.pattern.duration],
+              itemStyle: { color: seg.color, shadowColor: 'rgba(0,0,0,0.12)', shadowOffsetY: 2 },
+              originalPattern: seg.originalPattern,
+            },
+          ],
+          z: 2 + i,
+        }))),
+      };
+    },
     [processedSleepPatterns, sleepPatterns]
   );
 
@@ -648,9 +742,53 @@ const Statistics: React.FC = () => {
               <>
                 <ReactECharts option={sleepDurationOptions} style={{ height: '250px' }} notMerge={true} lazyUpdate={true} />
                 <div className="flex justify-center gap-4 mt-4 pt-4 border-t border-gray-100">
-                  <LegendItem color="#10B981" label="Excellent (12+ hrs)" />
-                  <LegendItem color="#6366F1" label="Good (10-12 hrs)" />
-                  <LegendItem color="#F59E0B" label="Fair (<10 hrs)" />
+                  <LegendItem color="#10B981" label={`Excellent (${SLEEP_EXCELLENT_THRESHOLD_HOURS}+ hrs)`} />
+                  <LegendItem color="#6366F1" label={`Good (${SLEEP_GOOD_THRESHOLD_HOURS}-${SLEEP_EXCELLENT_THRESHOLD_HOURS} hrs)`} />
+                  <LegendItem color="#F59E0B" label={`Fair (<${SLEEP_GOOD_THRESHOLD_HOURS} hrs)`} />
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Sessions vs Awakenings Trend */}
+          <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-lg">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+              <h3 className="text-lg font-semibold text-[#000] font-kodchasan">Awakenings per Session</h3>
+            </div>
+
+            <div className="flex flex-wrap gap-2 items-center mb-4">
+              <input
+                type="date"
+                value={awakeningsDateRange.start}
+                max={awakeningsDateRange.end}
+                onChange={(e) => setAwakeningsDateRange((prev) => clampDateRange(e.target.value, prev.end, 'start'))}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4ECDC4]"
+              />
+              <span className="text-gray-500 text-sm">to</span>
+              <input
+                type="date"
+                value={awakeningsDateRange.end}
+                min={awakeningsDateRange.start}
+                max={today}
+                onChange={(e) => setAwakeningsDateRange((prev) => clampDateRange(prev.start, e.target.value, 'end'))}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4ECDC4]"
+              />
+              <span className="text-xs text-gray-400">Max 3 months</span>
+            </div>
+
+            <p className="text-xs text-gray-400 mb-3">Lower is better — fewer awakenings per sleep session</p>
+
+            {awakeningsLoading ? (
+              <LoadingSpinner />
+            ) : awakeningsError ? (
+              <ErrorMessage message={awakeningsError} onRetry={loadAwakeningsData} />
+            ) : awakeningsData.length === 0 ? (
+              <NoData message="No sleep data available for this period" />
+            ) : (
+              <>
+                <ReactECharts option={sessionsVsAwakeningsOptions} style={{ height: '250px' }} notMerge={true} lazyUpdate={true} />
+                <div className="flex justify-center gap-4 mt-4 pt-4 border-t border-gray-100">
+                  <LegendItem color="#F59E0B" label="Awakenings per session" />
                 </div>
               </>
             )}
@@ -658,7 +796,29 @@ const Statistics: React.FC = () => {
 
           {/* Sleep Patterns - 24 Hour Clock */}
           <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-5 shadow-lg">
-            <h3 className="text-lg font-semibold text-[#000] mb-4 font-kodchasan">Typical Sleep Patterns (24-Hour Clock)</h3>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+              <h3 className="text-lg font-semibold text-[#000] font-kodchasan">Typical Sleep Patterns (24-Hour Clock)</h3>
+              <div className="flex gap-2 items-center">
+                <select
+                  value={patternsMonthValue.split('-')[1]}
+                  onChange={(e) => setPatternsMonthValue(prev => `${prev.split('-')[0]}-${e.target.value}`)}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4ECDC4]"
+                >
+                  {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                    <option key={i + 1} value={String(i + 1).padStart(2, '0')}>{m}</option>
+                  ))}
+                </select>
+                <select
+                  value={patternsMonthValue.split('-')[0]}
+                  onChange={(e) => setPatternsMonthValue(prev => `${e.target.value}-${prev.split('-')[1]}`)}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4ECDC4]"
+                >
+                  {Array.from({ length: 3 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                    <option key={y} value={String(y)}>{y}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
             {patternsLoading ? (
               <LoadingSpinner />
