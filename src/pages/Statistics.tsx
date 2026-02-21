@@ -3,6 +3,7 @@ import ReactECharts from 'echarts-for-react';
 import type { AuthUser } from '../types/auth';
 import type { SensorDataPoint, DailySleepPoint, SleepPattern, InsightsResponse, TrendsResponse, EnhancedInsightsResponse } from '../types/metrics';
 import { useLayoutContext } from '../components/LayoutContext';
+import { getSession } from '../utils/session';
 import { fetchSensorStats, fetchDailySleep, fetchSleepPatterns, fetchInsights, fetchTrends, fetchEnhancedInsights } from '../api/stats';
 
 interface LocalSleepPattern {
@@ -28,6 +29,34 @@ const Statistics: React.FC = () => {
     start: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0],
   });
+
+  const MAX_RANGE_DAYS = 90;
+  const today = new Date().toISOString().split('T')[0];
+
+  const clampDateRange = (
+    start: string,
+    end: string,
+    changed: 'start' | 'end'
+  ): { start: string; end: string } => {
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    const diffDays = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+
+    if (diffDays > MAX_RANGE_DAYS) {
+      if (changed === 'start') {
+        const maxEnd = new Date(startDate.getTime() + MAX_RANGE_DAYS * 24 * 60 * 60 * 1000);
+        const cappedEnd = maxEnd > new Date() ? new Date() : maxEnd;
+        return { start, end: cappedEnd.toISOString().split('T')[0] };
+      } else {
+        const minStart = new Date(endDate.getTime() - MAX_RANGE_DAYS * 24 * 60 * 60 * 1000);
+        return { start: minStart.toISOString().split('T')[0], end };
+      }
+    }
+    if (diffDays < 0) {
+      return changed === 'start' ? { start, end: start } : { start: end, end };
+    }
+    return { start, end };
+  };
 
   // API data states
   const [sensorData, setSensorData] = useState<SensorDataPoint[]>([]);
@@ -57,7 +86,7 @@ const Statistics: React.FC = () => {
   const [enhancedInsightsLoading, setEnhancedInsightsLoading] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem('nappi_user');
+    const stored = getSession();
     if (stored) {
       setUser(JSON.parse(stored));
     }
@@ -546,26 +575,31 @@ const Statistics: React.FC = () => {
                   onChange={(e) => setSelectedSensor(e.target.value as any)}
                   className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4ECDC4]"
                 >
-                  <option value="temperature">🌡️ Temperature</option>
-                  <option value="humidity">💧 Humidity</option>
-                  <option value="noise">🔊 Noise</option>
+                  <option value="temperature">Temperature</option>
+                  <option value="humidity">Humidity</option>
+                  <option value="noise">Noise</option>
                 </select>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 mb-4">
+            <div className="flex flex-wrap gap-2 items-center mb-4">
               <input
                 type="date"
                 value={sensorDateRange.start}
-                onChange={(e) => setSensorDateRange((prev) => ({ ...prev, start: e.target.value }))}
+                max={sensorDateRange.end}
+                onChange={(e) => setSensorDateRange((prev) => clampDateRange(e.target.value, prev.end, 'start'))}
                 className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4ECDC4]"
               />
+              <span className="text-gray-500 text-sm">to</span>
               <input
                 type="date"
                 value={sensorDateRange.end}
-                onChange={(e) => setSensorDateRange((prev) => ({ ...prev, end: e.target.value }))}
+                min={sensorDateRange.start}
+                max={today}
+                onChange={(e) => setSensorDateRange((prev) => clampDateRange(prev.start, e.target.value, 'end'))}
                 className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4ECDC4]"
               />
+              <span className="text-xs text-gray-400">Max 3 months</span>
             </div>
 
             {sensorLoading ? (
@@ -585,20 +619,24 @@ const Statistics: React.FC = () => {
               <h3 className="text-lg font-semibold text-[#000] font-kodchasan">Daily Sleep Duration</h3>
             </div>
 
-            <div className="flex flex-wrap gap-2 mb-4">
+            <div className="flex flex-wrap gap-2 items-center mb-4">
               <input
                 type="date"
                 value={sleepDateRange.start}
-                onChange={(e) => setSleepDateRange((prev) => ({ ...prev, start: e.target.value }))}
+                max={sleepDateRange.end}
+                onChange={(e) => setSleepDateRange((prev) => clampDateRange(e.target.value, prev.end, 'start'))}
                 className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4ECDC4]"
               />
-              <span className="flex items-center text-gray-500">to</span>
+              <span className="text-gray-500 text-sm">to</span>
               <input
                 type="date"
                 value={sleepDateRange.end}
-                onChange={(e) => setSleepDateRange((prev) => ({ ...prev, end: e.target.value }))}
+                min={sleepDateRange.start}
+                max={today}
+                onChange={(e) => setSleepDateRange((prev) => clampDateRange(prev.start, e.target.value, 'end'))}
                 className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4ECDC4]"
               />
+              <span className="text-xs text-gray-400">Max 3 months</span>
             </div>
 
             {sleepLoading ? (
@@ -645,7 +683,6 @@ const Statistics: React.FC = () => {
           <div className="bg-gradient-to-br from-[#E8F7F6] to-[#D5F0EF] rounded-3xl p-5 shadow-lg">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-[#2F8F8B] font-kodchasan flex items-center gap-2">
-                <span className="text-xl">🤖</span>
                 AI Sleep Analysis
               </h3>
               {(trendsLoading || enhancedInsightsLoading) && (
@@ -658,7 +695,7 @@ const Statistics: React.FC = () => {
               {trends?.ai_insights ? (
                 <div className="bg-white/80 rounded-2xl p-4">
                   <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <span>📊</span> Weekly Progress
+                    Weekly Progress
                   </h4>
                   <p className="text-sm text-gray-700 mb-3">{trends.ai_insights.summary}</p>
                   
@@ -748,7 +785,7 @@ const Statistics: React.FC = () => {
               {enhancedInsights?.insights ? (
                 <div className="bg-white/80 rounded-2xl p-4">
                   <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <span>💡</span> Last Awakening Analysis
+                    Last Awakening Analysis
                   </h4>
                   
                   {/* Awakening Info */}
@@ -802,7 +839,7 @@ const Statistics: React.FC = () => {
               ) : insights?.insights ? (
                 <div className="bg-white/80 rounded-2xl p-4">
                   <h4 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
-                    <span>💡</span> AI Analysis
+                    AI Analysis
                   </h4>
                   <p className="text-sm text-gray-700 leading-relaxed">{insights.insights}</p>
                 </div>
@@ -812,7 +849,7 @@ const Statistics: React.FC = () => {
               {trends?.ai_insights?.recommendations && trends.ai_insights.recommendations.length > 0 && (
                 <div className="bg-gradient-to-r from-[#FEF3C7] to-[#FDE68A] rounded-2xl p-4">
                   <h4 className="text-sm font-semibold text-[#92400E] mb-2 flex items-center gap-2">
-                    <span>🎯</span> Recommendations
+                    Recommendations
                   </h4>
                   {trends.ai_insights.recommendations.map((rec, i) => (
                     <div key={i} className="flex items-start gap-2 text-sm text-[#78350F] mb-2">

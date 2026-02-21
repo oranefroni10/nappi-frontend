@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api/auth';
 import type { SignUpRequest } from '../types/auth';
+import { setSession } from '../utils/session';
 
 const Signup: React.FC = () => {
   const navigate = useNavigate();
@@ -35,7 +36,7 @@ const Signup: React.FC = () => {
     try {
       const { data } = await authApi.signup(form);
       
-      localStorage.setItem('nappi_user', JSON.stringify({
+      setSession(JSON.stringify({
         user_id: data.user_id,
         username: data.username,
         baby_id: data.baby?.id || null,
@@ -128,7 +129,7 @@ const Signup: React.FC = () => {
             {/* Parent Info Section */}
             <div className="bg-gradient-to-br from-[#fee2d6]/30 to-[#fff5e6]/30 rounded-2xl p-5 border border-[#fee2d6]">
               <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <span>👤</span> Parent Information
+                Parent Information
               </p>
 
               <div className="flex gap-3 mb-4">
@@ -212,7 +213,7 @@ const Signup: React.FC = () => {
             {/* Baby Info Section */}
             <div className="bg-gradient-to-br from-[#e2f9fb]/40 to-[#d4f4f7]/30 rounded-2xl p-5 border border-[#b8eef3]">
               <p className="text-xs font-semibold text-[#047857] uppercase tracking-wider mb-4 flex items-center gap-2">
-                <span>👶</span> Baby Information
+                Baby Information
               </p>
 
               <div className="mb-4">

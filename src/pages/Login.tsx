@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api/auth';
+import { setSession } from '../utils/session';
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -17,7 +18,7 @@ const Login: React.FC = () => {
     try {
       const { data } = await authApi.signin({ username, password });
 
-      localStorage.setItem('nappi_user', JSON.stringify({
+      setSession(JSON.stringify({
         user_id: data.user_id,
         username: data.username,
         baby_id: data.baby_id,

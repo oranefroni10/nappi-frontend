@@ -3,6 +3,7 @@ import type { AuthUser, BabyNote } from '../types/auth';
 import { authApi, babiesApi } from '../api/auth';
 import { useLayoutContext } from '../components/LayoutContext';
 import { fetchVapidKey, fetchPushStatus, subscribeToPush, unsubscribeFromPush } from '../api/alerts';
+import { getSession } from '../utils/session';
 
 // Helper function to convert VAPID key to Uint8Array
 const urlBase64ToUint8Array = (base64String: string): Uint8Array => {
@@ -59,7 +60,7 @@ const UserProfile: React.FC = () => {
   const [noteError, setNoteError] = useState<string | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem('nappi_user');
+    const stored = getSession();
     if (stored) {
       const userData = JSON.parse(stored);
       setUser(userData);
