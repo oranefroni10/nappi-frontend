@@ -5,6 +5,7 @@ import { fetchAlerts, markAlertAsRead, markAllAlertsAsRead, deleteAlerts } from 
 import type { Alert } from '../api/alerts';
 import { useAlerts } from '../hooks/useAlerts';
 import { getSession } from '../utils/session';
+import { ALERTS_PAGE_SIZE } from '../constants';
 
 interface NotificationItem {
   id: number;
@@ -12,25 +13,8 @@ interface NotificationItem {
   message: string;
   createdAt: string;
   severity: 'info' | 'warning' | 'critical';
-  icon: string;
   read: boolean;
 }
-
-// Map alert types to icons
-const getIconForType = (type: string): string => {
-  switch (type) {
-    case 'awakening':
-      return 'AW';
-    case 'temperature':
-      return 'T';
-    case 'humidity':
-      return 'H';
-    case 'noise':
-      return 'N';
-    default:
-      return '!';
-  }
-};
 
 // Convert API Alert to NotificationItem
 const alertToNotification = (alert: Alert): NotificationItem => ({
@@ -39,7 +23,6 @@ const alertToNotification = (alert: Alert): NotificationItem => ({
   message: alert.message,
   createdAt: alert.created_at,
   severity: alert.severity,
-  icon: getIconForType(alert.type),
   read: alert.read,
 });
 
@@ -85,7 +68,7 @@ const Notifications: React.FC = () => {
     setError(null);
 
     try {
-      const response = await fetchAlerts(user.user_id, { limit: 50 });
+      const response = await fetchAlerts(user.user_id, { limit: ALERTS_PAGE_SIZE });
       setNotifications(response.alerts.map(alertToNotification));
     } catch (err) {
       console.error('Failed to load alerts:', err);
@@ -317,17 +300,6 @@ const Notifications: React.FC = () => {
                     }}
                   >
                     <div className="flex gap-4">
-                      <div
-                        className={`w-11 h-11 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 ${
-                          notification.read ? 'bg-gray-100' : 'bg-white'
-                        }`}
-                        style={{
-                          backgroundColor: notification.read ? '#F3F4F6' : styles.bg,
-                        }}
-                      >
-                        {notification.icon}
-                      </div>
-
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start mb-1">
                           <h4 className={`m-0 text-base font-semibold font-[Kodchasan] ${notification.read ? 'text-gray-600' : 'text-[#000]'}`}>

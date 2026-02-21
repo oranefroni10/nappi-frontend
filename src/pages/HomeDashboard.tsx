@@ -7,6 +7,7 @@ import type { LastSleepSummary, RoomMetrics, OptimalStatsResponse, InsightsRespo
 import type { AuthUser } from '../types/auth';
 import { useLayoutContext } from '../components/LayoutContext';
 import { getSession } from '../utils/session';
+import { TEMP_ALERT_HIGH_C, TEMP_ALERT_LOW_C, NOISE_ALERT_HIGH_DB, LOADING_SPINNER_THRESHOLD_MS, LOADING_MIN_DISPLAY_MS } from '../constants';
 
 // Helper function to calculate age from birthdate
 const calculateAge = (birthdate: string): string => {
@@ -95,8 +96,8 @@ const HomeDashboard: React.FC = () => {
         fetchCurrentRoomMetrics(babyId)
       ]);
 
-      // 2. The 300ms Threshold Promise
-      const thresholdPromise = new Promise<string>((resolve) => setTimeout(() => resolve('timeout'), 300));
+      // 2. The threshold promise — show spinner only after delay
+      const thresholdPromise = new Promise<string>((resolve) => setTimeout(() => resolve('timeout'), LOADING_SPINNER_THRESHOLD_MS));
 
       // 3. Race them
       const winner = await Promise.race([dataPromise.then(() => 'data'), thresholdPromise]);
@@ -111,7 +112,7 @@ const HomeDashboard: React.FC = () => {
         // Scenario B: Slow (>300ms). Show spinner AND wait 1.5s minimum.
         setShowSpinner(true);
 
-        const minLoadingTime = new Promise((resolve) => setTimeout(resolve, 1500));
+        const minLoadingTime = new Promise((resolve) => setTimeout(resolve, LOADING_MIN_DISPLAY_MS));
         const [[sleep, room]] = await Promise.all([dataPromise, minLoadingTime]);
 
         setSleepSummary(sleep);
@@ -483,7 +484,7 @@ const HomeDashboard: React.FC = () => {
                   label="Temperature"
                   value={roomMetrics.temperature_c != null ? `${roomMetrics.temperature_c.toFixed(1)}°C` : '--'}
                   color="#FF6B6B"
-                  status={roomMetrics.temperature_c != null ? (roomMetrics.temperature_c > 26 ? 'high' : roomMetrics.temperature_c < 18 ? 'low' : 'normal') : 'normal'}
+                  status={roomMetrics.temperature_c != null ? (roomMetrics.temperature_c > TEMP_ALERT_HIGH_C ? 'high' : roomMetrics.temperature_c < TEMP_ALERT_LOW_C ? 'low' : 'normal') : 'normal'}
                 />
                 <StatusCard
                   icon={<img src="/cbi-moisture1.svg" alt="Humidity" className="w-[38px]" />}
@@ -497,7 +498,7 @@ const HomeDashboard: React.FC = () => {
                   label="Noise"
                   value={roomMetrics.noise_db != null ? `${roomMetrics.noise_db.toFixed(0)} dB` : '--'}
                   color="#95E1D3"
-                  status={roomMetrics.noise_db != null && roomMetrics.noise_db > 50 ? 'high' : 'normal'}
+                  status={roomMetrics.noise_db != null && roomMetrics.noise_db > NOISE_ALERT_HIGH_DB ? 'high' : 'normal'}
                 />
               </div>
 

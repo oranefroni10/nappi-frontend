@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { getAlertsStreamUrl } from '../api/alerts';
 import type { Alert } from '../api/alerts';
+import { SSE_RECONNECT_DELAY_MS, ALERTS_MAX_IN_MEMORY } from '../constants';
 
 interface UseAlertsOptions {
   userId: number | undefined;
@@ -72,7 +73,7 @@ export function useAlerts({ userId, onNewAlert }: UseAlertsOptions): UseAlertsRe
         console.log('[SSE] Received alert:', alert);
         
         setLatestAlert(alert);
-        setAlerts((prev) => [alert, ...prev].slice(0, 100)); // Keep last 100
+        setAlerts((prev) => [alert, ...prev].slice(0, ALERTS_MAX_IN_MEMORY));
         
         // Call the callback if provided
         onNewAlertRef.current?.(alert);
@@ -86,11 +87,11 @@ export function useAlerts({ userId, onNewAlert }: UseAlertsOptions): UseAlertsRe
       setConnected(false);
       eventSource.close();
       
-      // Reconnect after 5 seconds
+      // Reconnect after delay
       reconnectTimeoutRef.current = setTimeout(() => {
         console.log('[SSE] Attempting to reconnect...');
         connect();
-      }, 5000);
+      }, SSE_RECONNECT_DELAY_MS);
     };
     
     // Handle custom 'connected' event
