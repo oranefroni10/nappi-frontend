@@ -69,7 +69,7 @@ const Notifications: React.FC = () => {
   }, []);
 
   // Subscribe to real-time alerts
-  const { latestAlert } = useAlerts({
+  useAlerts({
     userId: user?.user_id,
     onNewAlert: (alert) => {
       // Add new alert to the top of the list

@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { fetchLastSleepSummary } from '../api/sleep';
 import { fetchCurrentRoomMetrics } from '../api/room';
 import { fetchSleepStatus, fetchCooldownStatus, submitIntervention } from '../api/alerts';
@@ -47,7 +46,6 @@ const formatTime = (isoString: string): string => {
 type MetricType = 'temp' | 'soon' | 'humidity' | 'noise' | null;
 
 const HomeDashboard: React.FC = () => {
-  const navigate = useNavigate();
   const { setMenuOpen } = useLayoutContext();
 
   const [sleepSummary, setSleepSummary] = useState<LastSleepSummary | null>(null);
@@ -61,7 +59,7 @@ const HomeDashboard: React.FC = () => {
   // Sleep status and intervention state
   const [isSleeping, setIsSleeping] = useState(false);
   const [inCooldown, setInCooldown] = useState(false);
-  const [cooldownRemaining, setCooldownRemaining] = useState<number | null>(null);
+  const [, setCooldownRemaining] = useState<number | null>(null);
   const [interventionLoading, setInterventionLoading] = useState(false);
   
   // Optimal stats state
@@ -234,19 +232,19 @@ const HomeDashboard: React.FC = () => {
     switch (metric) {
       case 'temp':
         if (hasOptimalData && optimalStats?.temperature !== null) {
-          return `Most of ${babyName}'s longest naps happened at around ${optimalStats?.temperature.toFixed(0)}°C. Try keeping the room at this temperature for better sleep.`;
+          return `Most of ${babyName}'s longest naps happened at around ${optimalStats!.temperature.toFixed(0)}°C. Try keeping the room at this temperature for better sleep.`;
         }
         return `We're still learning ${babyName}'s preferences. Keep tracking sleep to see optimal temperature recommendations!`;
       case 'soon':
         return `Exciting updates are on the way! The next version of Nappi will feature new advanced sensors, giving you even deeper insights in ${babyName}'s sleep environment.`;
       case 'humidity':
         if (hasOptimalData && optimalStats?.humidity !== null) {
-          return `${babyName} sleeps best at around ${optimalStats?.humidity.toFixed(0)}% humidity. Consider using a humidifier to maintain this level.`;
+          return `${babyName} sleeps best at around ${optimalStats!.humidity.toFixed(0)}% humidity. Consider using a humidifier to maintain this level.`;
         }
         return `We're still learning ${babyName}'s preferences. Keep tracking sleep to see optimal humidity recommendations!`;
       case 'noise':
         if (hasOptimalData && optimalStats?.noise !== null) {
-          return `${babyName} sleeps best with noise levels around ${optimalStats?.noise.toFixed(0)} dB. White noise machines can help maintain consistent levels.`;
+          return `${babyName} sleeps best with noise levels around ${optimalStats!.noise.toFixed(0)} dB. White noise machines can help maintain consistent levels.`;
         }
         return `We're still learning ${babyName}'s preferences. Keep tracking sleep to see optimal noise level recommendations!`;
       default:
