@@ -75,9 +75,8 @@ const Statistics: React.FC = () => {
 
   // AI Insights state
   const [insights, setInsights] = useState<InsightsResponse | null>(null);
-  const [insightsLoading, setInsightsLoading] = useState(false);
-  const [insightsError, setInsightsError] = useState<string | null>(null);
-  const [insightsExpanded, setInsightsExpanded] = useState(false);
+  const [, setInsightsLoading] = useState(false);
+  const [, setInsightsError] = useState<string | null>(null);
 
   // Enhanced AI Analysis state
   const [trends, setTrends] = useState<TrendsResponse | null>(null);

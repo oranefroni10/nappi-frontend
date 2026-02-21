@@ -1,9 +1,8 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useLayoutContext } from './LayoutContext';
 import ChatFloatingButton from './ChatFloatingButton';
-import type { AuthUser } from '../types/auth';
-import { getSession, removeSession } from '../utils/session';
+import { removeSession } from '../utils/session';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -13,14 +12,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { menuOpen, setMenuOpen } = useLayoutContext();
-  const [user, setUser] = React.useState<AuthUser | null>(null);
-
-  useEffect(() => {
-    const stored = getSession();
-    if (stored) {
-      setUser(JSON.parse(stored));
-    }
-  }, []);
 
   const handleLogout = () => {
     removeSession();

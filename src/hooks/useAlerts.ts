@@ -36,7 +36,7 @@ export function useAlerts({ userId, onNewAlert }: UseAlertsOptions): UseAlertsRe
   const [alerts, setAlerts] = useState<Alert[]>([]);
   
   const eventSourceRef = useRef<EventSource | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onNewAlertRef = useRef(onNewAlert);
   
   // Keep callback ref up to date
