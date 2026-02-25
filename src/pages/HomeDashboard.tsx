@@ -600,13 +600,18 @@ const HomeDashboard: React.FC = () => {
 
                 {/* Quick Insights */}
                 {aiSummary.quick_insights && aiSummary.quick_insights.length > 0 && (
-                  <div className="space-y-2">
-                    {aiSummary.quick_insights.map((insight, index) => (
-                      <div key={index} className="flex items-start gap-2 text-sm text-gray-600">
-                        <span className="text-[#4ECDC4] mt-0.5">•</span>
-                        <span>{insight}</span>
-                      </div>
-                    ))}
+                  <div className="bg-white/80 rounded-2xl p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-medium text-gray-800">Quick Insights</span>
+                    </div>
+                    <div className="space-y-2">
+                      {aiSummary.quick_insights.map((insight, index) => (
+                        <div key={index} className="flex items-start gap-2 text-sm text-gray-600">
+                          <span className="text-[#4ECDC4] mt-0.5">•</span>
+                          <span>{insight}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
