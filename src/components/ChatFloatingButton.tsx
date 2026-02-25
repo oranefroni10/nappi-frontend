@@ -1,23 +1,20 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useLayoutContext } from './LayoutContext';
 
-/**
- * Floating chat button that appears on all pages except the chat page itself.
- * Positioned above the bottom navigation bar.
- */
 const ChatFloatingButton: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { pageLoading } = useLayoutContext();
 
-  // Don't show on chat page
-  if (location.pathname === '/chat') {
+  if (location.pathname === '/chat' || pageLoading) {
     return null;
   }
 
   return (
     <button
       onClick={() => navigate('/chat')}
-      className="fixed bottom-24 right-6 w-14 h-14 bg-[#4ECDC4] rounded-full shadow-lg flex items-center justify-center hover:bg-[#3dbdb5] transition-all z-50 hover:shadow-xl hover:scale-105 active:scale-95"
+      className="fixed bottom-6 right-4 w-14 h-14 bg-[#4ECDC4] rounded-full shadow-lg flex items-center justify-center hover:bg-[#3dbdb5] transition-all z-50 hover:shadow-xl hover:scale-105 active:scale-95"
       aria-label="Open AI Chat"
     >
       <svg

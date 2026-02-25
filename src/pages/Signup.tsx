@@ -15,8 +15,6 @@ const Signup: React.FC = () => {
     repeat_password: '',
     first_name: '',
     last_name: '',
-    baby_first_name: '',
-    baby_birthdate: '',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -45,7 +43,7 @@ const Signup: React.FC = () => {
         last_name: data.last_name,
       }));
 
-      if (data.baby_registered) {
+      if (data.baby_registered && data.baby) {
         navigate('/');
       } else {
         navigate('/onboarding');
@@ -207,42 +205,6 @@ const Signup: React.FC = () => {
                     className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-base outline-none transition-all duration-200 focus:border-[#ffc857] focus:shadow-[0_0_0_3px_rgba(255,200,87,0.2)]"
                   />
                 </div>
-              </div>
-            </div>
-
-            {/* Baby Info Section */}
-            <div className="bg-gradient-to-br from-[#e2f9fb]/40 to-[#d4f4f7]/30 rounded-2xl p-5 border border-[#b8eef3]">
-              <p className="text-xs font-semibold text-[#047857] uppercase tracking-wider mb-4 flex items-center gap-2">
-                Baby Information
-              </p>
-
-              <div className="mb-4">
-                <label className="block mb-2 text-sm font-medium text-gray-700">
-                  Baby&apos;s First Name
-                </label>
-                <input
-                  type="text"
-                  name="baby_first_name"
-                  required
-                  value={form.baby_first_name}
-                  onChange={handleChange}
-                  placeholder="Emma"
-                  className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-base outline-none transition-all duration-200 focus:border-[#4ECDC4] focus:shadow-[0_0_0_3px_rgba(78,205,196,0.2)]"
-                />
-              </div>
-
-              <div>
-                <label className="block mb-2 text-sm font-medium text-gray-700">
-                  Baby&apos;s Birthdate
-                </label>
-                <input
-                  type="date"
-                  name="baby_birthdate"
-                  required
-                  value={form.baby_birthdate}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-base outline-none transition-all duration-200 focus:border-[#4ECDC4] focus:shadow-[0_0_0_3px_rgba(78,205,196,0.2)]"
-                />
               </div>
             </div>
 
