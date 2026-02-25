@@ -583,32 +583,22 @@ const Statistics: React.FC = () => {
             return `<b>${op.label}</b><br/>${formatTime(op.start)} - ${formatTime(op.end > 24 ? op.end - 24 : op.end)}<br/>Duration: ${op.duration.toFixed(1)}h`;
           },
         },
-        graphic: [
-          {
-            type: 'text',
-            left: 'center',
-            top: '7%',
-            style: { text: '00:00', fill: '#6B7280', font: '18px sans-serif', textAlign: 'center' },
+        angleAxis: {
+          type: 'value',
+          min: 0,
+          max: 24,
+          startAngle: 90,
+          clockwise: true,
+          splitLine: { show: true, lineStyle: { color: '#E5E7EB', type: 'dashed' } },
+          axisLabel: {
+            formatter: (value: number) =>
+              [0, 6, 12, 18].includes(value)
+                ? `${value.toString().padStart(2, '0')}:00`
+                : '',
           },
-          {
-            type: 'text',
-            left: '89%',
-            top: '49%',
-            style: { text: '06:00', fill: '#6B7280', font: '18px sans-serif', textAlign: 'center' },
-          },
-          {
-            type: 'text',
-            left: 'center',
-            top: '88%',
-            style: { text: '12:00', fill: '#6B7280', font: '18px sans-serif', textAlign: 'center' },
-          },
-          {
-            type: 'text',
-            left: '8%',
-            top: '49%',
-            style: { text: '18:00', fill: '#6B7280', font: '18px sans-serif', textAlign: 'center' },
-          },
-        ],
+        },
+        radiusAxis: { type: 'category', data: ['Sleep'], show: false },
+        polar: { radius: '58%' },
         series: [
           {
             type: 'pie',
