@@ -20,8 +20,8 @@ export interface SignUpRequest {
   repeat_password: string;
   first_name: string;
   last_name: string;
-  baby_first_name: string;
-  baby_birthdate: string;
+  baby_first_name?: string;
+  baby_birthdate?: string;
 }
 
 export interface SignUpResponse {

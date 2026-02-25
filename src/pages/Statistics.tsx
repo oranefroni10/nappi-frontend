@@ -220,7 +220,9 @@ const Statistics: React.FC = () => {
           label: p.label,
           start: startDecimal,
           end: endDecimal,
-          duration: p.avg_duration_hours,
+          // Keep chart arc length aligned with the displayed start/end window.
+          // Some backend aggregates can have duration drift vs avg_start/avg_end.
+          duration: endDecimal - startDecimal,
         };
       });
 
@@ -466,7 +468,7 @@ const Statistics: React.FC = () => {
 
   // Process sleep patterns for polar chart
   const processedSleepPatterns = useMemo(() => {
-    return sleepPatterns.flatMap((p) => {
+    return sleepPatterns.flatMap((p, idx) => {
       const crossesMidnight = p.end > 24;
 
       if (crossesMidnight) {
@@ -481,6 +483,7 @@ const Statistics: React.FC = () => {
             duration: endFirst - p.start,
             segmentId: `${p.label}-1`,
             parentLabel: p.label,
+            parentIndex: idx,
           },
           {
             ...p,
@@ -489,6 +492,7 @@ const Statistics: React.FC = () => {
             duration: endSecond,
             segmentId: `${p.label}-2`,
             parentLabel: p.label,
+            parentIndex: idx,
           },
         ];
       }
@@ -496,9 +500,12 @@ const Statistics: React.FC = () => {
         ...p,
         segmentId: p.label,
         parentLabel: p.label,
+        parentIndex: idx,
       };
     });
   }, [sleepPatterns]);
+
+  const PATTERN_PALETTE = ['#FCD34D', '#60A5FA', '#34D399', '#F472B6', '#A78BFA', '#FB923C', '#818CF8', '#38BDF8'];
 
   // Sleep patterns chart options — uses custom series (canvas drawing) for precise hover detection
   const sleepPatternsOptions = useMemo(
@@ -509,75 +516,126 @@ const Statistics: React.FC = () => {
         return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
       };
 
-      const getColor = (label: string) => {
-        if (label.toLowerCase().includes('morning')) return '#FCD34D';
-        if (label.toLowerCase().includes('afternoon')) return '#60A5FA';
-        return '#818CF8';
+      // Build contiguous 24h timeline: transparent gaps + colored sleep segments.
+      // This avoids multi-series stacking edge cases where some segments could disappear.
+      const segments = processedSleepPatterns
+        .map((pattern) => {
+          const originalPattern = sleepPatterns[pattern.parentIndex];
+          return {
+            start: Math.max(0, Math.min(24, pattern.start)),
+            end: Math.max(0, Math.min(24, pattern.end)),
+            color: PATTERN_PALETTE[pattern.parentIndex % PATTERN_PALETTE.length],
+            originalPattern,
+          };
+        })
+        .filter((seg) => seg.end > seg.start)
+        .sort((a, b) => a.start - b.start);
+
+      type TimelineItem = {
+        duration: number;
+        color: string;
+        transparent: boolean;
+        originalPattern?: LocalSleepPattern;
       };
 
-      // Build data items: each segment is one arc on the polar chart
-      const segments = processedSleepPatterns.map((pattern) => {
-        const originalPattern = sleepPatterns.find((p) => p.label === pattern.parentLabel);
-        return {
-          start: pattern.start,
-          end: pattern.start + pattern.duration,
-          color: getColor(pattern.label),
-          pattern,
-          originalPattern,
-        };
-      });
+      const timeline: TimelineItem[] = [];
+      let cursor = 0;
+
+      for (const seg of segments) {
+        const effectiveStart = Math.max(seg.start, cursor);
+        const effectiveEnd = Math.max(seg.end, effectiveStart);
+
+        if (effectiveStart > cursor) {
+          timeline.push({
+            duration: effectiveStart - cursor,
+            color: 'transparent',
+            transparent: true,
+          });
+        }
+
+        if (effectiveEnd > effectiveStart) {
+          timeline.push({
+            duration: effectiveEnd - effectiveStart,
+            color: seg.color,
+            transparent: false,
+            originalPattern: seg.originalPattern,
+          });
+        }
+
+        cursor = Math.max(cursor, effectiveEnd);
+      }
+
+      if (cursor < 24) {
+        timeline.push({
+          duration: 24 - cursor,
+          color: 'transparent',
+          transparent: true,
+        });
+      }
 
       return {
         tooltip: {
           trigger: 'item',
           formatter: (params: any) => {
-            const seg = params.data;
-            if (!seg?.originalPattern) return '';
-            const op = seg.originalPattern;
+            const item = params.data;
+            if (!item?.originalPattern) return '';
+            const op = item.originalPattern as LocalSleepPattern;
             return `<b>${op.label}</b><br/>${formatTime(op.start)} - ${formatTime(op.end > 24 ? op.end - 24 : op.end)}<br/>Duration: ${op.duration.toFixed(1)}h`;
           },
         },
-        angleAxis: {
-          type: 'value',
-          min: 0,
-          max: 24,
-          startAngle: 90,
-          clockwise: true,
-          splitLine: { show: true, lineStyle: { color: '#E5E7EB', type: 'dashed' } },
-          axisLabel: {
-            formatter: (value: number) => ([0, 6, 12, 18].includes(value) ? `${value.toString().padStart(2, '0')}:00` : ''),
+        graphic: [
+          {
+            type: 'text',
+            left: 'center',
+            top: '7%',
+            style: { text: '00:00', fill: '#6B7280', font: '18px sans-serif', textAlign: 'center' },
           },
-        },
-        radiusAxis: { type: 'category', data: ['Sleep'], show: false },
-        polar: { radius: '75%' },
-        series: (segments.map((seg, i) => ({
-          type: 'bar',
-          coordinateSystem: 'polar',
-          stack: `seg-${i}`,
-          barGap: '-100%',
-          barWidth: 30,
-          data: [
-            // Transparent spacer
-            { value: [0, seg.start], itemStyle: { color: 'transparent', borderColor: 'transparent' } },
-          ],
-          silent: true,
-          tooltip: { show: false },
-          z: 1,
-        })) as any[]).concat(segments.map((seg, i) => ({
-          type: 'bar',
-          coordinateSystem: 'polar',
-          stack: `seg-${i}`,
-          barGap: '-100%',
-          barWidth: 30,
-          data: [
-            {
-              value: [0, seg.pattern.duration],
-              itemStyle: { color: seg.color, shadowColor: 'rgba(0,0,0,0.12)', shadowOffsetY: 2 },
-              originalPattern: seg.originalPattern,
-            },
-          ],
-          z: 2 + i,
-        }))),
+          {
+            type: 'text',
+            left: '89%',
+            top: '49%',
+            style: { text: '06:00', fill: '#6B7280', font: '18px sans-serif', textAlign: 'center' },
+          },
+          {
+            type: 'text',
+            left: 'center',
+            top: '88%',
+            style: { text: '12:00', fill: '#6B7280', font: '18px sans-serif', textAlign: 'center' },
+          },
+          {
+            type: 'text',
+            left: '8%',
+            top: '49%',
+            style: { text: '18:00', fill: '#6B7280', font: '18px sans-serif', textAlign: 'center' },
+          },
+        ],
+        series: [
+          {
+            type: 'pie',
+            center: ['50%', '50%'],
+            radius: ['42%', '58%'],
+            startAngle: 90,
+            clockwise: true,
+            avoidLabelOverlap: true,
+            label: { show: false },
+            labelLine: { show: false },
+            data: timeline.map((item) => ({
+              value: item.duration,
+              itemStyle: item.transparent
+                ? {
+                    color: 'transparent',
+                    borderColor: 'transparent',
+                    borderWidth: 0,
+                  }
+                : {
+                    color: item.color,
+                    borderColor: '#fff',
+                    borderWidth: 2,
+                  },
+              originalPattern: item.originalPattern,
+            })),
+          },
+        ],
       };
     },
     [processedSleepPatterns, sleepPatterns]
@@ -585,10 +643,8 @@ const Statistics: React.FC = () => {
 
   // Generate dynamic legend based on actual patterns
   const patternLegendItems = useMemo(() => {
-    return sleepPatterns.map((p) => {
-      let color = '#818CF8';
-      if (p.label.toLowerCase().includes('morning')) color = '#FCD34D';
-      if (p.label.toLowerCase().includes('afternoon')) color = '#60A5FA';
+    return sleepPatterns.map((p, i) => {
+      const color = PATTERN_PALETTE[i % PATTERN_PALETTE.length];
 
       const formatTime = (hour: number) => {
         const h = Math.floor(hour) % 24;
@@ -874,18 +930,21 @@ const Statistics: React.FC = () => {
 
                   {/* Trend Direction */}
                   {trends.weekly && (
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        trends.weekly.trend === 'improving' 
-                          ? 'bg-green-100 text-green-700' 
-                          : trends.weekly.trend === 'declining'
-                          ? 'bg-orange-100 text-orange-700'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {trends.weekly.trend === 'improving' ? '↑ Improving' : 
-                         trends.weekly.trend === 'declining' ? '↓ Needs attention' : '→ Stable'}
-                        {' '}({trends.weekly.trend_percentage}%)
-                      </span>
+                    <div className="mb-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          trends.weekly.trend === 'improving' 
+                            ? 'bg-green-100 text-green-700' 
+                            : trends.weekly.trend === 'declining'
+                            ? 'bg-orange-100 text-orange-700'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {trends.weekly.trend === 'improving' ? '↑ Improving' : 
+                           trends.weekly.trend === 'declining' ? '↓ Needs attention' : '→ Stable'}
+                          {' '}({trends.weekly.trend_percentage}%)
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-400 ml-1">Based on average daily sleep hours over the past 7 days</p>
                     </div>
                   )}
 

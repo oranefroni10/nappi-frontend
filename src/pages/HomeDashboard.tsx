@@ -47,7 +47,7 @@ const formatTime = (isoString: string): string => {
 type MetricType = 'temp' | 'soon' | 'humidity' | 'noise' | null;
 
 const HomeDashboard: React.FC = () => {
-  const { setMenuOpen } = useLayoutContext();
+  const { setMenuOpen, setPageLoading } = useLayoutContext();
 
   const [sleepSummary, setSleepSummary] = useState<LastSleepSummary | null>(null);
   const [roomMetrics, setRoomMetrics] = useState<RoomMetrics | null>(null);
@@ -77,7 +77,10 @@ const HomeDashboard: React.FC = () => {
   const [schedulePrediction, setSchedulePrediction] = useState<SchedulePredictionResponse | null>(null);
 
   useEffect(() => {
-    // Load user from session cookie
+    setPageLoading(loading);
+  }, [loading, setPageLoading]);
+
+  useEffect(() => {
     const stored = getSession();
     if (stored) {
       setUser(JSON.parse(stored));

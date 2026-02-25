@@ -564,7 +564,6 @@ const UserProfile: React.FC = () => {
           </div>
 
           {/* App Info */}
-          <p className="text-center text-gray-400 text-xs mt-4">Nappi v1.0.0 • Made with love for better baby sleep</p>
         </div>
       </section>
     </>

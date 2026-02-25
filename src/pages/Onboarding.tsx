@@ -5,8 +5,6 @@ import type { AuthUser } from '../types/auth';
 import { getSession, setSession } from '../utils/session';
 
 const Onboarding: React.FC = () => {
-  console.log('New Onboarding UI rendering');  // Debug: Confirm new code runs
-
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -93,9 +91,11 @@ const Onboarding: React.FC = () => {
             animation: 'fadeIn 0.6s ease-in backwards'
           }}
         >
-          <div className="w-[100px] h-[100px] mx-auto mb-5 rounded-full bg-gradient-to-br from-[#B4E7E5] to-[#7DD3C8] flex items-center justify-center shadow-lg">
-            <img src="/logo.svg" alt="Nappi" className="w-14 h-14" />
-          </div>
+          <img
+            src="/logo.svg"
+            alt="Nappi logo"
+            className="w-28 h-auto mx-auto mb-5"
+          />
           <h2 className="text-3xl font-bold text-[#000] mb-2">
             Almost there!
           </h2>
