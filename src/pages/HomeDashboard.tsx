@@ -590,30 +590,24 @@ const HomeDashboard: React.FC = () => {
                   </div>
                 )}
 
-                {/* Today's Tip */}
+                {/* Today's Tips & Quick Insights */}
                 <div className="bg-[#FEF3C7] rounded-2xl p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="font-medium text-[#92400E]">Today's Tip</span>
+                    <span className="font-medium text-[#92400E]">Today's Tips</span>
                   </div>
-                  <p className="text-sm text-[#78350F]">{aiSummary.todays_tip}</p>
-                </div>
-
-                {/* Quick Insights */}
-                {aiSummary.quick_insights && aiSummary.quick_insights.length > 0 && (
-                  <div className="bg-white/80 rounded-2xl p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="font-medium text-gray-800">Quick Insights</span>
-                    </div>
+                  {aiSummary.quick_insights && aiSummary.quick_insights.length > 0 ? (
                     <div className="space-y-2">
                       {aiSummary.quick_insights.map((insight, index) => (
-                        <div key={index} className="flex items-start gap-2 text-sm text-gray-600">
-                          <span className="text-[#4ECDC4] mt-0.5">•</span>
+                        <div key={index} className="flex items-start gap-2 text-sm text-[#78350F]">
+                          <span className="text-[#92400E] mt-0.5">•</span>
                           <span>{insight}</span>
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <p className="text-sm text-[#78350F]">{aiSummary.todays_tip}</p>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="space-y-3">
