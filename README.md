@@ -161,7 +161,6 @@ nappi-frontend/
 - Real-time alerts via SSE (`useAlerts` hook, auto-reconnect 5s)
 - History from API (last 50 alerts)
 - Mark individual / all as read
-- **Delete**: single (trash icon) + bulk (select mode with checkboxes + floating delete bar)
 - Severity styling: colored left border (blue=info, amber=warning, red=critical)
 - Unread badge: "New" pill
 
@@ -329,7 +328,6 @@ Other types: `SensorDataPoint`, `SleepPattern`, `DailySleepPoint`, `OptimalStats
 - **Accent**: Gold `#ffc857` / `#FFD166`
 - **Backgrounds**: Soft gradients `from-[#fee2d6] via-[#FAFBFC] to-[#e2f9fb]`
 - **Sensor colors**: Orange (temp), Blue (humidity), Green (noise)
-- **No emojis**: All replaced with text labels, SVG icons, or abbreviations
 
 ### Animations
 
