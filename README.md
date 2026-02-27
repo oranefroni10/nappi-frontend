@@ -75,7 +75,7 @@ nappi-frontend/
 │   │
 │   ├── components/                 # Reusable UI components
 │   │   ├── Layout.tsx              # Main layout: burger menu sidebar + floating chat button
-│   │   ├── LayoutContext.tsx        # Context for menu open/close state
+│   │   ├── LayoutContext.tsx        # Context for menu open/close + page loading state
 │   │   ├── ProtectedRoute.tsx      # Auth guard (redirects to /welcome or /onboarding)
 │   │   ├── ChatFloatingButton.tsx  # Floating button linking to /chat
 │   │   └── Btn.tsx                 # Welcome page button
@@ -83,7 +83,7 @@ nappi-frontend/
 │   ├── pages/                      # Page components
 │   │   ├── Welcome.tsx             # Landing page with animated gradient
 │   │   ├── Login.tsx               # Username + password form
-│   │   ├── Signup.tsx              # Parent + baby registration
+│   │   ├── Signup.tsx              # Parent registration (name, username, password)
 │   │   ├── Onboarding.tsx          # Register baby post-signup
 │   │   ├── HomeDashboard.tsx       # Main dashboard (8 data fetches, 6 sections)
 │   │   ├── Statistics.tsx          # Charts: sensor trends, daily sleep, patterns, AI analysis
@@ -104,6 +104,7 @@ nappi-frontend/
 │   ├── styles/
 │   │   └── fonts.css               # Kodchasan font import
 │   │
+│   ├── constants.ts                # All named constants (thresholds, timeouts, limits)
 │   ├── App.tsx                     # React Router setup
 │   ├── main.tsx                    # DOM render + Service Worker registration
 │   └── index.css                   # Tailwind base
@@ -125,7 +126,7 @@ nappi-frontend/
 |-------|------|-------------|
 | `/welcome` | Welcome | Animated landing page, "Let's Nap" button |
 | `/login` | Login | Username + password, stores session cookie |
-| `/signup` | Signup | Parent info + baby info, one-shot registration |
+| `/signup` | Signup | Parent registration (name, username, password) |
 
 ### Protected (requires auth)
 
@@ -151,8 +152,9 @@ nappi-frontend/
 
 1. **Sensor Trend Chart** — Line chart (temperature/humidity/noise toggle), date range with 90-day max clamping
 2. **Daily Sleep Chart** — Bar chart with color coding by hours
-3. **Sleep Patterns Chart** — Polar chart showing clustered sleep time windows
-4. **AI Analysis** — Weekly trends, enhanced awakening analysis, recommendations
+3. **Awakenings per Session** — Line chart showing awakening ratio trend (lower is better)
+4. **Sleep Patterns Chart** — Polar chart showing clustered sleep time windows
+5. **AI Analysis** — Weekly trends, enhanced awakening analysis, recommendations
 
 ### Notifications Features
 
@@ -160,7 +162,7 @@ nappi-frontend/
 - History from API (last 50 alerts)
 - Mark individual / all as read
 - **Delete**: single (trash icon) + bulk (select mode with checkboxes + floating delete bar)
-- Type icons: text labels ("AW", "T", "H", "N", "!")
+- Severity styling: colored left border (blue=info, amber=warning, red=critical)
 - Unread badge: "New" pill
 
 ### Chat Features
@@ -179,17 +181,17 @@ nappi-frontend/
 
 ```typescript
 export const api = axios.create({
-  baseURL: 'http://localhost:8000',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
   timeout: 10000,
 });
 
 export const chatApi = axios.create({
-  baseURL: 'http://localhost:8000',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
   timeout: 60000,  // AI chat needs longer timeout
 });
 ```
 
-**Note**: Base URL is hardcoded. For production, this must be changed.
+**Note**: Base URL defaults to `http://localhost:8000`. Set the `VITE_API_URL` environment variable for production.
 
 ### API Modules
 
@@ -199,7 +201,7 @@ export const chatApi = axios.create({
 | `sleep.ts` | `fetchLastSleepSummary`, `getSleepStatus` |
 | `room.ts` | `fetchCurrentRoomMetrics` |
 | `stats.ts` | `fetchSensorStats`, `fetchSleepPatterns`, `fetchDailySleep`, `fetchOptimalStats`, `fetchInsights`, `fetchEnhancedInsights`, `fetchTrends`, `fetchSchedulePrediction`, `fetchAISummary` |
-| `alerts.ts` | `fetchAlerts`, `fetchUnreadCount`, `markAlertAsRead`, `markAllAlertsAsRead`, `deleteAlerts`, `fetchSleepStatus`, `fetchCooldownStatus`, `submitIntervention`, push subscribe/unsubscribe/status |
+| `alerts.ts` | `fetchAlerts`, `fetchUnreadCount`, `markAlertAsRead`, `markAllAlertsAsRead`, `deleteAlerts`, `fetchSleepStatus`, `fetchCooldownStatus`, `submitIntervention`, SSE stream, push subscribe/unsubscribe/status |
 | `chat.ts` | `sendChatMessage` (baby_id, user_id, message, history) |
 
 ---
@@ -265,8 +267,9 @@ All charts use **ECharts 6** via `echarts-for-react`.
 | Chart | Page | Type | Data |
 |-------|------|------|------|
 | Sensor Trends | Statistics | Line | Temperature/humidity/noise daily averages |
-| Daily Sleep | Statistics | Bar | Total sleep hours per day (color: green >12h, blue >10h, orange <10h) |
-| Sleep Patterns | Statistics | Polar | Clustered sleep time windows by time of day |
+| Daily Sleep | Statistics | Bar | Total sleep hours per day (color: green >12h, indigo >10h, amber <10h) |
+| Awakenings/Session | Statistics | Line | Awakening ratio per sleep session over time |
+| Sleep Patterns | Statistics | Polar/Pie | Clustered sleep time windows by time of day |
 
 ### Date Range Handling
 
