@@ -27,7 +27,7 @@ export const NOISE_ALERT_HIGH_DB = 50;
 // API TIMEOUTS (milliseconds)
 // =============================================================================
 
-export const API_STANDARD_TIMEOUT_MS = 10_000;  // 10 seconds for standard requests
+export const API_STANDARD_TIMEOUT_MS = 15_000;  // 15 seconds for standard requests (enhanced insight take ~11 seconds)
 export const API_CHAT_TIMEOUT_MS = 60_000;       // 60 seconds for AI chat (Gemini latency)
 
 // =============================================================================
