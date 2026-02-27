@@ -27,8 +27,8 @@ Modern web app for parents to monitor and improve their baby's sleep. Tracks sle
 - **Routing**: [React Router v7](https://reactrouter.com/)
 - **HTTP**: [Axios](https://axios-http.com/) (two instances: 10s default, 60s for chat)
 - **Charts**: [ECharts 6](https://echarts.apache.org/) via `echarts-for-react`
-- **Styling**: [Tailwind CSS 3](https://tailwindcss.com/) — utility-first, Kodchasan font
-- **State**: React `useState` per page — no Redux/Zustand
+- **Styling**: [Tailwind CSS 3](https://tailwindcss.com/) - utility-first, Kodchasan font
+- **State**: React `useState` per page - no Redux/Zustand
 - **Auth**: Session cookie via `document.cookie` (no JWT)
 
 ---
@@ -141,20 +141,20 @@ nappi-frontend/
 
 ### HomeDashboard Sections
 
-1. **Header** — Greeting, baby profile card (name, age)
-2. **Last Nap** — Start/end times, avg temperature/humidity, max noise (from sleep summary)
-3. **Sleep Status + Intervention** — Current state, "Mark Asleep/Awake" button, cooldown notice
-4. **Preferences** — 4 metric cards showing optimal conditions (tap to expand)
-5. **Room Status** — Live temperature/humidity/noise grid with status indicators (null-safe)
-6. **AI Insights** — Sleep summary, environment, next sleep prediction, today's tip, quick insights
+1. **Header** - Greeting, baby profile card (name, age)
+2. **Last Nap** - Start/end times, avg temperature/humidity, max noise (from sleep summary)
+3. **Sleep Status + Intervention** - Current state, "Mark Asleep/Awake" button, cooldown notice
+4. **Preferences** - 4 metric cards showing optimal conditions (tap to expand)
+5. **Room Status** - Live temperature/humidity/noise grid with status indicators (null-safe)
+6. **AI Insights** - Sleep summary, environment, next sleep prediction, today's tip, quick insights
 
 ### Statistics Sections
 
-1. **Sensor Trend Chart** — Line chart (temperature/humidity/noise toggle), date range with 90-day max clamping
-2. **Daily Sleep Chart** — Bar chart with color coding by hours
-3. **Awakenings per Session** — Line chart showing awakening ratio trend (lower is better)
-4. **Sleep Patterns Chart** — Polar chart showing clustered sleep time windows
-5. **AI Analysis** — Weekly trends, enhanced awakening analysis, recommendations
+1. **Sensor Trend Chart** - Line chart (temperature/humidity/noise toggle), date range with 90-day max clamping
+2. **Daily Sleep Chart** - Bar chart with color coding by hours
+3. **Awakenings per Session** - Line chart showing awakening ratio trend (lower is better)
+4. **Sleep Patterns Chart** - Polar chart showing clustered sleep time windows
+5. **AI Analysis** - Weekly trends, enhanced awakening analysis, recommendations
 
 ### Notifications Features
 
@@ -214,7 +214,7 @@ Auth state is stored in a **session cookie** (not localStorage):
 
 ```typescript
 getSession()        // Read nappi_user cookie
-setSession(value)   // Set session cookie (no expires — cleared on browser close)
+setSession(value)   // Set session cookie (no expires - cleared on browser close)
 removeSession()     // Delete cookie
 ```
 
@@ -286,7 +286,7 @@ Statistics page enforces:
 ### `src/types/metrics.ts`
 
 ```typescript
-// Sleep — no SleepStage/SleepStageMetric (removed)
+// Sleep - no SleepStage/SleepStageMetric (removed)
 interface LastSleepSummary {
   baby_name: string;
   started_at: string;
@@ -298,7 +298,7 @@ interface LastSleepSummary {
   max_noise?: number | null;
 }
 
-// Room — all fields Optional (no fake defaults, no light_lux)
+// Room - all fields Optional (no fake defaults, no light_lux)
 interface RoomMetrics {
   temperature_c?: number | null;
   humidity_percent?: number | null;
@@ -320,7 +320,7 @@ Other types: `SensorDataPoint`, `SleepPattern`, `DailySleepPoint`, `OptimalStats
 
 ### Approach
 
-**Tailwind CSS** utility classes — no CSS modules, no styled-components.
+**Tailwind CSS** utility classes - no CSS modules, no styled-components.
 
 ### Theme
 
@@ -334,11 +334,11 @@ Other types: `SensorDataPoint`, `SleepPattern`, `DailySleepPoint`, `OptimalStats
 ### Animations
 
 Defined as inline `@keyframes` in component files:
-- `fadeIn` — opacity + transform
-- `slideInLeft` / `slideInRight` — horizontal slide
-- `slideUp` — vertical slide
-- `pulse` — scale oscillation
-- `bounce` — loading dots
+- `fadeIn` - opacity + transform
+- `slideInLeft` / `slideInRight` - horizontal slide
+- `slideUp` - vertical slide
+- `pulse` - scale oscillation
+- `bounce` - loading dots
 
 ---
 
@@ -350,11 +350,11 @@ Backend must have `http://localhost:5173` in its `CORS_ORIGINS` (configured in b
 
 ### Chat timeout
 
-AI chat uses a 60s timeout (`chatApi`). Do not reduce it — Gemini can be slow.
+AI chat uses a 60s timeout (`chatApi`). Do not reduce it - Gemini can be slow.
 
 ### Session cookie not persisting
 
-Session cookies are cleared when the browser **fully closes** (not just the tab). This is by design — no `expires`/`max-age` is set.
+Session cookies are cleared when the browser **fully closes** (not just the tab). This is by design - no `expires`/`max-age` is set.
 
 ### Port already in use
 
